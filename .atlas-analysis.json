@@ -1,0 +1,132 @@
+{
+  "projectType": "api-service",
+  "projectName": "KilomeTracker API",
+  "projectDescription": "A REST API for vehicle management that tracks mileage, fuel consumption, maintenance, and expenses with JWT authentication and role-based access control.",
+  "theme": "luma",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/data-model",
+              "concepts/roles-permissions",
+              "concepts/rate-limiting"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/vehicle-lifecycle",
+              "guides/tracking-trips",
+              "guides/fuel-efficiency",
+              "guides/maintenance-alerts"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/profile",
+              "api/auth/users"
+            ]
+          },
+          {
+            "group": "Vehicles",
+            "pages": [
+              "api/vehicles/overview",
+              "api/vehicles/stats"
+            ]
+          },
+          {
+            "group": "Tracking",
+            "pages": [
+              "api/routes",
+              "api/refuels",
+              "api/maintenance",
+              "api/expenses"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "api/dashboard"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JWT authentication with four role levels: read, write, admin, root",
+    "Vehicle management with automatic odometer tracking via atomic $inc operations",
+    "Trip/route logging that updates vehicle total kilometrage in real time",
+    "Fuel refuel tracking with km/liter, km/gallon, and cost-per-km efficiency analytics",
+    "Preventive maintenance scheduling with date and mileage-based alerts",
+    "Vehicle expense tracking with recurring expenses and tax-deductible flags",
+    "Comprehensive cost-of-ownership statistics and per-vehicle analytics",
+    "Rate limiting (100 req/15min general, 5 req/15min auth) and request tracing",
+    "Pagination on all list endpoints",
+    "Soft delete for users and vehicles; permanent delete for transactional records"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/register",
+    "POST /api/auth/login",
+    "GET /api/auth/me",
+    "PUT /api/auth/updateprofile",
+    "PUT /api/auth/updatepassword",
+    "GET /api/auth/users",
+    "GET /api/vehicles",
+    "POST /api/vehicles",
+    "GET /api/vehicles/:alias",
+    "PUT /api/vehicles/:alias",
+    "DELETE /api/vehicles/:alias",
+    "PATCH /api/vehicles/:alias/reactivate",
+    "GET /api/vehicles/:alias/stats",
+    "GET /api/vehicles/:alias/fuel-efficiency",
+    "GET /api/routes",
+    "POST /api/routes",
+    "GET /api/routes/:id",
+    "PUT /api/routes/:id",
+    "DELETE /api/routes/:id",
+    "GET /api/refuels",
+    "POST /api/refuels",
+    "GET /api/refuels/:id",
+    "PUT /api/refuels/:id",
+    "DELETE /api/refuels/:id",
+    "GET /api/refuels/vehicle/:alias/analysis",
+    "GET /api/maintenance",
+    "POST /api/maintenance",
+    "GET /api/maintenance/upcoming",
+    "GET /api/maintenance/:id",
+    "PUT /api/maintenance/:id",
+    "DELETE /api/maintenance/:id",
+    "GET /api/expenses",
+    "POST /api/expenses",
+    "GET /api/expenses/summary",
+    "GET /api/expenses/upcoming",
+    "GET /api/expenses/:id",
+    "PUT /api/expenses/:id",
+    "DELETE /api/expenses/:id",
+    "GET /api/dashboard"
+  ]
+}

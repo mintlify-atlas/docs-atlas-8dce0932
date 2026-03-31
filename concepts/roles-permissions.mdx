@@ -1,0 +1,145 @@
+---
+title: 'Roles and Permissions'
+description: 'How KilomeTracker controls access to resources using role-based authorization.'
+keywords: ['roles', 'permissions', 'authorization', 'RBAC', 'admin', 'read', 'write', 'root']
+---
+
+## Overview
+
+Every user is assigned a single role that determines which operations they can perform. Authorization is enforced by two middleware functions in `middleware/auth.js`:
+
+- `protect` — validates the Bearer JWT and attaches the user to `req.user`. All protected endpoints require this.
+- `authorize(...roles)` — checks that `req.user.role` is in the allowed set. Returns `403` if not.
+
+---
+
+## Roles
+
+<CardGroup cols={2}>
+  <Card title="read" icon="eye">
+    The default role assigned at registration. Can retrieve any resource they own, but cannot create, update, or delete records.
+  </Card>
+  <Card title="write" icon="pencil">
+    Can perform all read operations plus create, update, and delete routes, refuels, maintenance records, and expenses. Must be granted by an admin.
+  </Card>
+  <Card title="admin" icon="shield">
+    All write permissions, plus the ability to manage other users: list accounts, view details, change roles, and deactivate or reactivate accounts. Must be granted by an admin.
+  </Card>
+  <Card title="root" icon="lock">
+    Highest privilege level defined in the schema. Intended for system-level access. Granted only through direct database operations or by another root user.
+  </Card>
+</CardGroup>
+
+<Note>
+New accounts always start with the `read` role. A user with `write` or higher role must explicitly grant elevated access via `PUT /api/auth/users/:id/role`.
+</Note>
+
+---
+
+## Permissions matrix
+
+| Operation | `read` | `write` | `admin` | `root` |
+| --------- | :----: | :-----: | :-----: | :----: |
+| **Auth** | | | | |
+| Register / login | Public | Public | Public | Public |
+| Change own password | Yes | Yes | Yes | Yes |
+| **Vehicles** | | | | |
+| List own vehicles | Yes | Yes | Yes | Yes |
+| Get vehicle details / stats / fuel efficiency | Yes | Yes | Yes | Yes |
+| Create vehicle | No | Yes | Yes | Yes |
+| Update vehicle | No | Yes | Yes | Yes |
+| Deactivate vehicle (soft delete) | No | Yes | Yes | Yes |
+| Reactivate vehicle | No | Yes | Yes | Yes |
+| **Routes** | | | | |
+| List routes | Yes | Yes | Yes | Yes |
+| Get route | Yes | Yes | Yes | Yes |
+| Create route | No | Yes | Yes | Yes |
+| Update route | No | Yes | Yes | Yes |
+| Delete route | No | Yes | Yes | Yes |
+| **Refuels** | | | | |
+| List refuels | Yes | Yes | Yes | Yes |
+| Get refuel | Yes | Yes | Yes | Yes |
+| Create refuel | No | Yes | Yes | Yes |
+| Update refuel | No | Yes | Yes | Yes |
+| Delete refuel | No | Yes | Yes | Yes |
+| **Maintenance** | | | | |
+| List / get maintenance records | Yes | Yes | Yes | Yes |
+| Upcoming maintenance | Yes | Yes | Yes | Yes |
+| Create maintenance | No | Yes | Yes | Yes |
+| Update maintenance | No | Yes | Yes | Yes |
+| Delete maintenance | No | Yes | Yes | Yes |
+| **Expenses** | | | | |
+| List / get expenses | Yes | Yes | Yes | Yes |
+| Expense summary / upcoming | Yes | Yes | Yes | Yes |
+| Create expense | No | Yes | Yes | Yes |
+| Update expense | No | Yes | Yes | Yes |
+| Delete expense | No | Yes | Yes | Yes |
+| **User management** | | | | |
+| List all users | No | No | Yes | Yes |
+| View user details | No | No | Yes | Yes |
+| Update user role | No | No | Yes | Yes |
+| Deactivate user (soft delete) | No | No | Yes | Yes |
+| Reactivate user | No | No | Yes | Yes |
+
+---
+
+## Access patterns in detail
+
+### GET endpoints — all authenticated users
+
+Any request with a valid Bearer token can perform read operations. No elevated role is needed to list or view resources. The `protect` middleware is the only gate.
+
+### Write operations — `write` or `admin`
+
+Creating, updating, or deleting vehicles, routes, refuels, maintenance records, and expenses all require at least the `write` role:
+
+```javascript
+router.post('/', protect, authorize('write', 'admin', 'root'), createRoute);
+router.put('/:id', protect, authorize('write', 'admin', 'root'), updateRoute);
+router.delete('/:id', protect, authorize('write', 'admin', 'root'), deleteRoute);
+```
+
+### User management — `admin` only
+
+The following endpoints require the `admin` (or `root`) role:
+
+| Endpoint | Description |
+| -------- | ----------- |
+| `GET /api/auth/users` | List all users; supports `?isActive=true/false` filter |
+| `GET /api/auth/users/:id` | Get details for a specific user |
+| `PUT /api/auth/users/:id/role` | Change a user's role |
+| `DELETE /api/auth/users/:id` | Soft-delete (deactivate) a user account |
+| `PATCH /api/auth/users/:id/reactivate` | Restore a deactivated account |
+
+<Warning>
+An admin cannot deactivate their own account. The endpoint enforces this check and returns a `400` error if attempted.
+</Warning>
+
+---
+
+## 403 response format
+
+When a request is rejected due to insufficient role, the API returns:
+
+```json
+{
+  "success": false,
+  "error": "El rol read no tiene permisos para esta acción"
+}
+```
+
+The error message includes the user's current role, making it straightforward to diagnose permission failures.
+
+---
+
+## Granting and changing roles
+
+An admin sends a `PUT` request with the target role in the body:
+
+```json
+{
+  "role": "write"
+}
+```
+
+Valid values are `read`, `write`, and `admin`. The `root` role is not assignable through this endpoint in normal operation.

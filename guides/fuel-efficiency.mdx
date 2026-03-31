@@ -1,0 +1,218 @@
+---
+title: 'Fuel Efficiency Analytics'
+description: 'Track refuels and interpret fuel efficiency metrics like km/liter, km/gallon, and cost per km in KilomeTracker.'
+keywords: ['fuel', 'refuel', 'efficiency', 'km per liter', 'cost per km', 'analytics', 'Quetzal']
+---
+
+KilomeTracker tracks every fill-up and cross-references it with logged trips to compute real-world efficiency metrics. All monetary values are in **Guatemalan Quetzal (Q)**.
+
+---
+
+## Logging a refuel
+
+Send `POST /api/refuels` to record a fill-up.
+
+```bash
+curl -X POST https://api.kilometracker.app/api/refuels \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vehicleAlias": "HILUX01",
+    "tipoCombustible": "Premium",
+    "cantidadGastada": 500,
+    "galones": 10,
+    "fecha": "2024-11-24T10:30:00.000Z"
+  }'
+```
+
+**Response (201):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "64f3c4d5e6f7a8b9c0d1e2f3",
+    "vehicleAlias": "HILUX01",
+    "vehicle": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "tipoCombustible": "Premium",
+    "cantidadGastada": 500,
+    "galones": 10,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "owner": "64e0a1b2c3d4e5f6a7b8c9d0",
+    "precioPorGalon": "50.00"
+  }
+}
+```
+
+### Request fields
+
+<ParamField body="vehicleAlias" type="string" required>
+  The alias of the vehicle being refueled. Must belong to an active vehicle.
+</ParamField>
+
+<ParamField body="tipoCombustible" type="string" required>
+  Fuel type. One of: `Regular`, `Premium`, `Diesel`, `Eléctrico`, `Híbrido`, `V-Power`.
+</ParamField>
+
+<ParamField body="cantidadGastada" type="number" required>
+  Amount spent on fuel, in Guatemalan Quetzales (Q). Minimum `0`.
+</ParamField>
+
+<ParamField body="galones" type="number">
+  Number of gallons pumped. Optional, but required to compute `precioPorGalon` and efficiency metrics. Minimum `0`.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  ISO 8601 date-time of the fill-up. Defaults to the current time if omitted.
+</ParamField>
+
+### The `precioPorGalon` virtual field
+
+`precioPorGalon` is not stored in the database — it is computed on the fly as:
+
+```
+precioPorGalon = cantidadGastada / galones
+```
+
+It appears in all read responses when `galones` is present, formatted to two decimal places. If `galones` is `null`, `precioPorGalon` is also `null`.
+
+---
+
+## Fuel analysis by vehicle
+
+`GET /api/refuels/vehicle/:alias/analysis` returns aggregated consumption data for a single vehicle across all recorded refuels.
+
+```bash
+curl "https://api.kilometracker.app/api/refuels/vehicle/HILUX01/analysis" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "vehicle": {
+      "alias": "HILUX01",
+      "marca": "Toyota",
+      "modelo": 2021
+    },
+    "summary": {
+      "totalReabastecimientos": 25,
+      "totalGastado": "12500.50",
+      "totalGalones": "250.00",
+      "promedioGalonPrice": "50.00"
+    },
+    "porTipoCombustible": {
+      "Premium": {
+        "cantidad": 20,
+        "gasto": 10000,
+        "galones": 200
+      },
+      "Regular": {
+        "cantidad": 5,
+        "gasto": 2500,
+        "galones": 50
+      }
+    }
+  }
+}
+```
+
+### Response fields explained
+
+| Field | Description |
+|---|---|
+| `summary.totalReabastecimientos` | Total number of fill-ups recorded for the vehicle |
+| `summary.totalGastado` | Total Q spent on fuel across all refuels |
+| `summary.totalGalones` | Total gallons pumped (only counts refuels where `galones` was provided) |
+| `summary.promedioGalonPrice` | Weighted average price per gallon: `totalGastado / totalGalones` |
+| `porTipoCombustible` | Breakdown of spend, gallons, and count grouped by fuel type |
+
+---
+
+## Efficiency metrics with date filtering
+
+`GET /api/vehicles/:alias/fuel-efficiency` calculates efficiency by combining trip distance with refuel costs for a given period. This endpoint accepts optional `startDate` and `endDate` parameters.
+
+<Tabs>
+  <Tab title="All time">
+    ```bash
+    curl "https://api.kilometracker.app/api/vehicles/HILUX01/fuel-efficiency" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+  <Tab title="Date range">
+    ```bash
+    curl "https://api.kilometracker.app/api/vehicles/HILUX01/fuel-efficiency?startDate=2024-01-01&endDate=2024-12-31" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+</Tabs>
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "vehicle": {
+      "alias": "HILUX01",
+      "marca": "Toyota",
+      "modelo": 2021
+    },
+    "efficiency": {
+      "kmPorLitro": 12.5,
+      "kmPorGalon": 47.32,
+      "costoPorKm": 0.85,
+      "totalDistancia": 5000,
+      "totalGalones": 105.7,
+      "totalGastoCombustible": 4250
+    },
+    "period": {
+      "startDate": "2024-01-01",
+      "endDate": "2024-12-31",
+      "totalRefuels": 25,
+      "totalRoutes": 120
+    }
+  }
+}
+```
+
+### Efficiency field definitions
+
+| Field | Description |
+|---|---|
+| `kmPorLitro` | Kilometers driven per liter of fuel (gallons × 3.78541 = liters) |
+| `kmPorGalon` | Kilometers driven per gallon |
+| `costoPorKm` | Total fuel spend (Q) divided by total kilometers driven |
+| `totalDistancia` | Total kilometers driven in the period (from routes) |
+| `totalGalones` | Total gallons consumed in the period (from refuels) |
+| `totalGastoCombustible` | Total Q spent on fuel in the period |
+
+<Tip>
+  For the most accurate efficiency metrics, make sure you log `galones` on every refuel. Refuels without `galones` are excluded from efficiency calculations.
+</Tip>
+
+---
+
+## Supported fuel types
+
+| Value | Description |
+|---|---|
+| `Regular` | Standard gasoline |
+| `Premium` | Premium gasoline |
+| `Diesel` | Diesel fuel |
+| `Eléctrico` | Electric (charge cost tracked in Q) |
+| `Híbrido` | Hybrid (partial electric) |
+| `V-Power` | Shell V-Power |
+
+<CardGroup cols={2}>
+  <Card title="Tracking Trips" icon="route" href="/guides/tracking-trips">
+    Understand how trip distance feeds into efficiency calculations.
+  </Card>
+  <Card title="Maintenance Alerts" icon="wrench" href="/guides/maintenance-alerts">
+    Log service records and get upcoming maintenance alerts.
+  </Card>
+</CardGroup>

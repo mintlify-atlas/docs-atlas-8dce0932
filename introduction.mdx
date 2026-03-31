@@ -1,0 +1,68 @@
+---
+title: "Introduction"
+description: "KilomeTracker is a REST API for vehicle management — track mileage, fuel, maintenance, and expenses for individual drivers and small fleets."
+---
+
+KilomeTracker is a vehicle management API built for the Guatemalan market. It gives you a complete picture of every vehicle you manage: every kilometer driven, every fuel stop, every service visit, and every associated expense — all in one place.
+
+The API exposes over 40 endpoints organized by resource, with JWT-based authentication, role-based access control, and pagination on every list endpoint.
+
+<Note>
+  All monetary values in the API — fuel costs, maintenance costs, expenses — are denominated in the **Guatemalan Quetzal (Q / GTQ)**.
+</Note>
+
+## Tech stack
+
+KilomeTracker is built on a modern Node.js stack:
+
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Node.js >= 18 |
+| Framework | Express 4.x |
+| Database | MongoDB Atlas (Mongoose ODM) |
+| Authentication | JWT (jsonwebtoken) |
+| Security | Helmet, CORS, rate limiting |
+
+## Key capabilities
+
+**Automatic odometer tracking** — every trip you log increments the vehicle's total kilometrage in real time using atomic database operations. You never calculate odometer totals manually.
+
+**Fuel efficiency analytics** — record refuels and query km/liter, km/gallon, and cost per kilometer for any date range.
+
+**Maintenance scheduling** — log service records with next-service dates and kilometerages. The API surfaces upcoming maintenance due within 30 days or 500 km.
+
+**Expense management** — track insurance, taxes, tolls, parking, and other costs. Mark expenses as recurring or tax-deductible. Query a spending summary grouped by category.
+
+**Role-based access control** — four roles control what each user can do (see [Roles](#roles) below).
+
+## Roles
+
+Every user account has one of four roles:
+
+| Role | What they can do |
+|------|-----------------|
+| `read` | View all data belonging to them. No write access. |
+| `write` | Create, update, and delete their own vehicles, trips, refuels, maintenance records, and expenses. |
+| `admin` | Everything `write` can do, plus user management (list users, update roles, deactivate/reactivate accounts). |
+| `root` | Full system access, including permanent user deletion with cascade. |
+
+<Note>
+  New accounts default to the `read` role. An `admin` or `root` user must upgrade the role to `write` before a user can create data.
+</Note>
+
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Register an account, create a vehicle, and log your first trip in minutes.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how to obtain a JWT token and authenticate every request.
+  </Card>
+  <Card title="Data Model" icon="database" href="/concepts/data-model">
+    Understand how users, vehicles, trips, refuels, maintenance, and expenses relate.
+  </Card>
+  <Card title="Vehicles API" icon="car" href="/api/vehicles/overview">
+    Full endpoint reference for vehicle creation, updates, stats, and fuel efficiency.
+  </Card>
+</CardGroup>

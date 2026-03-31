@@ -1,0 +1,154 @@
+---
+title: "Vehicle Statistics"
+description: "Get comprehensive cost-of-ownership and efficiency analytics for a vehicle."
+---
+
+## GET /api/vehicles/:alias/stats
+
+Return a complete breakdown of a vehicle's activity, costs, and efficiency metrics since tracking began.
+
+**Auth:** Required (any authenticated user)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the request succeeded.
+</ResponseField>
+
+<ResponseField name="data" type="object" required>
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="vehicle" type="object">
+      Summary of the vehicle record.
+      <Expandable title="properties">
+        <ResponseField name="alias" type="string">
+          Uppercase identifier for the vehicle.
+        </ResponseField>
+        <ResponseField name="marca" type="string">
+          Vehicle make (manufacturer).
+        </ResponseField>
+        <ResponseField name="modelo" type="number">
+          Model year.
+        </ResponseField>
+        <ResponseField name="plates" type="string">
+          License plate number.
+        </ResponseField>
+        <ResponseField name="kilometrajeInicial" type="number">
+          Starting odometer reading when the vehicle was registered.
+        </ResponseField>
+        <ResponseField name="kilometrajeTotal" type="number">
+          Current total odometer reading, automatically updated as routes are created or deleted.
+        </ResponseField>
+        <ResponseField name="isActive" type="boolean">
+          Whether the vehicle is currently active.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="statistics" type="object">
+      Aggregate counts of all activity records.
+      <Expandable title="properties">
+        <ResponseField name="totalRoutes" type="number">
+          Total number of routes (trips) logged for this vehicle.
+        </ResponseField>
+        <ResponseField name="totalRefuels" type="number">
+          Total number of refuel records logged.
+        </ResponseField>
+        <ResponseField name="totalMaintenances" type="number">
+          Total number of maintenance records logged.
+        </ResponseField>
+        <ResponseField name="totalExpenses" type="number">
+          Total number of other expense records logged.
+        </ResponseField>
+        <ResponseField name="totalDistancia" type="number">
+          Total distance driven in kilometers across all routes.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="costs" type="object">
+      Full cost-of-ownership breakdown.
+      <Expandable title="properties">
+        <ResponseField name="combustible" type="number">
+          Total amount spent on fuel across all refuels.
+        </ResponseField>
+        <ResponseField name="mantenimiento" type="number">
+          Total amount spent on maintenance services.
+        </ResponseField>
+        <ResponseField name="gastosOtros" type="number">
+          Total amount spent on other expense categories (insurance, tolls, parking, etc.).
+        </ResponseField>
+        <ResponseField name="total" type="number">
+          Combined total of all costs: `combustible + mantenimiento + gastosOtros`.
+        </ResponseField>
+        <ResponseField name="costoPorKm" type="number">
+          Average total cost per kilometer driven.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="efficiency" type="object">
+      Fuel and distance efficiency metrics.
+      <Expandable title="properties">
+        <ResponseField name="kmPorLitro" type="number">
+          Average kilometers driven per liter of fuel consumed.
+        </ResponseField>
+        <ResponseField name="kmPorGalon" type="number">
+          Average kilometers driven per gallon of fuel consumed.
+        </ResponseField>
+        <ResponseField name="promedioDistanciaPorRuta" type="number">
+          Average distance in kilometers per route.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO/stats' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "vehicle": {
+      "alias": "MIVEHICULO",
+      "marca": "Toyota",
+      "modelo": 2023,
+      "plates": "ABC-1234",
+      "kilometrajeInicial": 0,
+      "kilometrajeTotal": 15000,
+      "isActive": true
+    },
+    "statistics": {
+      "totalRoutes": 120,
+      "totalRefuels": 25,
+      "totalMaintenances": 5,
+      "totalExpenses": 10,
+      "totalDistancia": 15000
+    },
+    "costs": {
+      "combustible": 4250.5,
+      "mantenimiento": 1500,
+      "gastosOtros": 800,
+      "total": 6550.5,
+      "costoPorKm": 0.44
+    },
+    "efficiency": {
+      "kmPorLitro": 12.5,
+      "kmPorGalon": 47.32,
+      "promedioDistanciaPorRuta": 125
+    }
+  }
+}
+```

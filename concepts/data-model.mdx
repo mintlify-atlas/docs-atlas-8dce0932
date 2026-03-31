@@ -1,0 +1,196 @@
+---
+title: 'Data Model'
+description: 'How KilomeTracker structures vehicles, routes, and related records in MongoDB.'
+keywords: ['data model', 'schema', 'vehicle', 'route', 'refuel', 'maintenance', 'expense', 'user']
+---
+
+## Overview
+
+KilomeTracker organizes data in a strict ownership hierarchy. A **User** owns one or more **Vehicles**. Each vehicle accumulates **Routes** (trips), **Refuels**, **Maintenance** records, and **Expenses**.
+
+```
+User
+ └── Vehicle (alias: "HONDA01")
+      ├── Route          (trip records)
+      ├── Refuel         (fuel fills)
+      ├── Maintenance    (service records)
+      └── Expense        (insurance, tolls, etc.)
+```
+
+Every document carries an `owner` field (ObjectId ref to `User`) and, for transactional records, both a `vehicle` ObjectId and a `vehicleAlias` string. This dual reference allows efficient queries by alias without a join, while preserving referential integrity via the ObjectId.
+
+---
+
+## Models
+
+### User
+
+The root of the ownership tree. Passwords are stored as bcrypt hashes (cost factor 12) and are excluded from query results by default (`select: false`).
+
+| Field                  | Type     | Required | Notes                                        |
+| ---------------------- | -------- | -------- | -------------------------------------------- |
+| `username`             | String   | Yes      | Unique, trimmed, minimum 3 characters        |
+| `email`                | String   | Yes      | Unique, lowercased, validated by regex        |
+| `password`             | String   | Yes      | Hashed; excluded from responses by default   |
+| `role`                 | String   | Yes      | Enum: `read`, `write`, `admin`, `root`; default `read` |
+| `isActive`             | Boolean  | —        | Default `true`; soft-delete flag             |
+| `resetPasswordToken`   | String   | —        | Excluded from responses by default           |
+| `resetPasswordExpire`  | Date     | —        | Excluded from responses by default           |
+| `createdAt`            | Date     | —        | Auto-managed by Mongoose `timestamps`        |
+| `updatedAt`            | Date     | —        | Auto-managed by Mongoose `timestamps`        |
+
+---
+
+### Vehicle
+
+Represents a physical vehicle. The `alias` field acts as a human-readable unique identifier used throughout the API instead of the MongoDB `_id`.
+
+| Field                | Type     | Required | Notes                                                     |
+| -------------------- | -------- | -------- | --------------------------------------------------------- |
+| `alias`              | String   | Yes      | Unique, forced uppercase; used as the URL identifier      |
+| `marca`              | String   | Yes      | Manufacturer/brand                                        |
+| `modelo`             | Number   | Yes      | Model year; range 1900 to current year + 1                |
+| `plates`             | String   | —        | License plate; forced uppercase; default `null`           |
+| `kilometrajeInicial` | Number   | Yes      | Odometer reading at the time of registration; min 0       |
+| `kilometrajeTotal`   | Number   | —        | Running total odometer; initialized from `kilometrajeInicial` on creation |
+| `owner`              | ObjectId | Yes      | Ref: `User`                                               |
+| `isActive`           | Boolean  | —        | Default `true`; soft-delete flag                          |
+| `createdAt`          | Date     | —        | Auto-managed by Mongoose `timestamps`                     |
+| `updatedAt`          | Date     | —        | Auto-managed by Mongoose `timestamps`                     |
+
+#### The `alias` pattern
+
+The `alias` is the stable, URL-safe identifier for a vehicle. All route paths that refer to a vehicle use `:alias` rather than `:id`:
+
+```
+GET /api/vehicles/HONDA01/stats
+POST /api/vehicles/HONDA01/routes
+```
+
+Aliases are stored and matched in uppercase. When querying a vehicle, always normalize the value:
+
+```javascript
+Vehicle.findOne({ alias: alias.toUpperCase(), owner: req.user.id })
+```
+
+---
+
+### Route
+
+A single trip record. Creating, updating, or deleting a route automatically adjusts the parent vehicle's `kilometrajeTotal`.
+
+| Field                | Type     | Required | Notes                                             |
+| -------------------- | -------- | -------- | ------------------------------------------------- |
+| `vehicleAlias`       | String   | Yes      | Uppercase alias of the owning vehicle             |
+| `vehicle`            | ObjectId | Yes      | Ref: `Vehicle`                                    |
+| `fecha`              | Date     | Yes      | Trip date; default `Date.now`                     |
+| `distanciaRecorrida` | Number   | Yes      | Distance in kilometers; min 0.1                   |
+| `notasAdicionales`   | String   | —        | Free-text notes; default `""`                     |
+| `owner`              | ObjectId | Yes      | Ref: `User`                                       |
+| `createdAt`          | Date     | —        | Auto-managed by Mongoose `timestamps`             |
+| `updatedAt`          | Date     | —        | Auto-managed by Mongoose `timestamps`             |
+
+**Compound index:** `{ vehicle: 1, fecha: -1 }`
+
+---
+
+### Refuel
+
+A fuel fill-up record. Includes a virtual field `precioPorGalon` (price per gallon) calculated at read time.
+
+| Field             | Type     | Required | Notes                                                                                   |
+| ----------------- | -------- | -------- | --------------------------------------------------------------------------------------- |
+| `vehicleAlias`    | String   | Yes      | Uppercase alias of the owning vehicle                                                   |
+| `vehicle`         | ObjectId | Yes      | Ref: `Vehicle`                                                                          |
+| `tipoCombustible` | String   | Yes      | Enum: `Regular`, `Premium`, `Diesel`, `Eléctrico`, `Híbrido`, `V-Power`                 |
+| `cantidadGastada` | Number   | Yes      | Amount spent (currency); min 0                                                          |
+| `galones`         | Number   | —        | Volume in gallons; min 0; default `null`                                                |
+| `fecha`           | Date     | —        | Fill-up date; default `Date.now`                                                        |
+| `owner`           | ObjectId | Yes      | Ref: `User`                                                                             |
+| `precioPorGalon`  | Number   | —        | **Virtual** — computed as `cantidadGastada / galones`; `null` when `galones` is absent |
+
+---
+
+### Maintenance
+
+A service or repair record for a vehicle. Supports scheduling the next service by date or odometer.
+
+| Field                  | Type     | Required | Notes                                                                                                                   |
+| ---------------------- | -------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `vehicleAlias`         | String   | Yes      | Uppercase alias of the owning vehicle                                                                                   |
+| `vehicle`              | ObjectId | Yes      | Ref: `Vehicle`                                                                                                          |
+| `tipo`                 | String   | Yes      | Enum: `Cambio de aceite`, `Rotación de llantas`, `Frenos`, `Inspección`, `Reparación`, `Batería`, `Filtros`, `Transmisión`, `Suspensión`, `Alineación`, `Otro` |
+| `descripcion`          | String   | Yes      | Free-text description of the work performed                                                                             |
+| `costo`                | Number   | Yes      | Cost of service; min 0                                                                                                  |
+| `fecha`                | Date     | Yes      | Service date; default `Date.now`                                                                                        |
+| `kilometraje`          | Number   | Yes      | Odometer reading at time of service; min 0                                                                              |
+| `proveedor`            | String   | —        | Service provider name; default `""`                                                                                     |
+| `proximoServicioFecha` | Date     | —        | Scheduled date for next service; default `null`                                                                         |
+| `proximoServicioKm`    | Number   | —        | Odometer target for next service; min 0; default `null`                                                                 |
+| `notas`                | String   | —        | Additional notes; default `""`                                                                                          |
+| `owner`                | ObjectId | Yes      | Ref: `User`                                                                                                             |
+
+**Compound indexes:** `{ vehicle: 1, fecha: -1 }` and `{ vehicle: 1, tipo: 1 }`
+
+---
+
+### Expense
+
+A miscellaneous cost record for a vehicle (anything that is not a fuel fill-up). Supports recurring expenses and tax-deductibility flagging.
+
+| Field                  | Type     | Required | Notes                                                                      |
+| ---------------------- | -------- | -------- | -------------------------------------------------------------------------- |
+| `vehicleAlias`         | String   | Yes      | Uppercase alias of the owning vehicle                                      |
+| `vehicle`              | ObjectId | Yes      | Ref: `Vehicle`                                                             |
+| `categoria`            | String   | Yes      | Enum: `Seguro`, `Impuestos`, `Registro`, `Estacionamiento`, `Peajes`, `Lavado`, `Multas`, `Financiamiento`, `Otro` |
+| `monto`                | Number   | Yes      | Amount spent; min 0                                                        |
+| `descripcion`          | String   | Yes      | Free-text description                                                      |
+| `fecha`                | Date     | Yes      | Expense date; default `Date.now`                                           |
+| `esRecurrente`         | Boolean  | —        | Whether the expense repeats; default `false`                               |
+| `frecuenciaRecurrencia`| String   | —        | Enum: `Mensual`, `Trimestral`, `Semestral`, `Anual`; default `null`        |
+| `proximoPago`          | Date     | —        | Next scheduled payment date; default `null`                                |
+| `esDeducibleImpuestos` | Boolean  | —        | Tax-deductible flag; default `false`                                       |
+| `notas`                | String   | —        | Additional notes; default `""`                                             |
+| `owner`                | ObjectId | Yes      | Ref: `User`                                                                |
+
+**Compound indexes:** `{ vehicle: 1, fecha: -1 }`, `{ vehicle: 1, categoria: 1 }`, `{ owner: 1, esDeducibleImpuestos: 1 }`
+
+---
+
+## Delete patterns
+
+KilomeTracker uses two distinct delete strategies depending on the model.
+
+### Soft delete — User and Vehicle
+
+`DELETE` on a User or Vehicle sets `isActive: false` rather than removing the document. The record remains in the database, preserving referential integrity for all linked transactional records.
+
+- List endpoints accept an optional `?isActive=true` or `?isActive=false` query parameter to filter by status.
+- A `PATCH /:id/reactivate` endpoint restores `isActive` to `true` for both models.
+- Admins cannot soft-delete their own account.
+- Only vehicles with `isActive: true` can receive new routes.
+
+### Permanent delete — Route, Refuel, Maintenance, Expense
+
+`DELETE` on any transactional record removes the document from the database with no recovery path.
+
+<Warning>
+Deleting a route also decrements the parent vehicle's `kilometrajeTotal` by the route's `distanciaRecorrida`. There is no undo.
+</Warning>
+
+---
+
+## Automatic odometer tracking
+
+`kilometrajeTotal` on a Vehicle is maintained automatically by the route handlers — it is never updated directly by the client.
+
+| Event                  | Effect on `kilometrajeTotal`                          |
+| ---------------------- | ----------------------------------------------------- |
+| Vehicle created        | Set to `kilometrajeInicial` via Mongoose pre-save hook |
+| Route created          | Incremented by `distanciaRecorrida`                   |
+| Route updated          | Adjusted by the difference between old and new `distanciaRecorrida` |
+| Route deleted          | Decremented by `distanciaRecorrida`                   |
+
+<Note>
+Refuels, Maintenance records, and Expenses do not affect `kilometrajeTotal`. Only Route operations change the vehicle odometer.
+</Note>

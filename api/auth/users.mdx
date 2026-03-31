@@ -1,0 +1,424 @@
+---
+title: 'User management'
+description: 'Admin-only endpoints for listing, viewing, updating roles, and deactivating users.'
+---
+
+<Note>
+  All endpoints on this page require an authenticated user with the `admin` or `root` role. Requests from accounts with `read` or `write` roles receive a `403 Forbidden` response. Admins cannot see or modify `root` users — only `root` accounts have full access.
+</Note>
+
+---
+
+## List all users
+
+`GET /api/auth/users`
+
+Returns all registered users, optionally filtered by active status.
+
+**Auth required:** Yes — `Authorization: Bearer <token>` (admin role)
+
+### Query parameters
+
+<ParamField query="isActive" type="string">
+  Filter users by active status. Accepts `"true"` or `"false"`. Omit to return all users.
+</ParamField>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="count" type="number">
+  Total number of users returned.
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of user objects.
+  <Expandable title="properties">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="username" type="string">
+      Display name.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      Role assigned to the user: `read`, `write`, or `admin`.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      Whether the account is currently active.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp of account creation.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 timestamp of last modification.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Missing or invalid token. |
+| `403`  | Authenticated user does not have the `admin` role. |
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.app/api/auth/users?isActive=true' \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+      "username": "jane",
+      "email": "jane@example.com",
+      "role": "write",
+      "isActive": true,
+      "createdAt": "2024-11-01T10:00:00.000Z",
+      "updatedAt": "2024-11-20T08:30:00.000Z"
+    },
+    {
+      "_id": "6642f3a1c3d4e5f6a7b8c9d1",
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "admin",
+      "isActive": true,
+      "createdAt": "2024-10-15T09:00:00.000Z",
+      "updatedAt": "2024-10-15T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get user by ID
+
+`GET /api/auth/users/:id`
+
+Returns the full profile of a single user.
+
+**Auth required:** Yes — `Authorization: Bearer <token>` (admin role)
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  MongoDB ObjectId of the user to retrieve.
+</ParamField>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The requested user document.
+  <Expandable title="properties">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="username" type="string">
+      Display name.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      Role assigned to the user: `read`, `write`, or `admin`.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      Whether the account is currently active.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp of account creation.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 timestamp of last modification.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Missing or invalid token. |
+| `403`  | Authenticated user does not have the `admin` role. |
+| `404`  | No user found with the given ID. |
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url https://api.kilometracker.app/api/auth/users/6642f3a1c3d4e5f6a7b8c9d0 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "username": "jane",
+    "email": "jane@example.com",
+    "role": "write",
+    "isActive": true,
+    "createdAt": "2024-11-01T10:00:00.000Z",
+    "updatedAt": "2024-11-20T08:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update user role
+
+`PUT /api/auth/users/:id/role`
+
+Changes the role assigned to a user.
+
+**Auth required:** Yes — `Authorization: Bearer <token>` (`admin` or `root` role)
+
+<Warning>
+  An `admin` cannot modify the role of another `admin` or a `root` user. Only a `root` account can promote or demote admins. Attempting to do so returns a `403 Forbidden` response.
+</Warning>
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  MongoDB ObjectId of the user whose role will be updated.
+</ParamField>
+
+### Request body
+
+<ParamField body="role" type="string" required>
+  New role for the user. Must be one of `"read"`, `"write"`, or `"admin"`.
+</ParamField>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated user document.
+  <Expandable title="properties">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="username" type="string">
+      Display name.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      The newly assigned role.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      Whether the account is currently active.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Missing or invalid token. |
+| `403`  | Authenticated user does not have the `admin` role. |
+| `404`  | No user found with the given ID. |
+
+### Example
+
+```bash cURL
+curl --request PUT \
+  --url https://api.kilometracker.app/api/auth/users/6642f3a1c3d4e5f6a7b8c9d0/role \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{"role": "admin"}'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "username": "jane",
+    "email": "jane@example.com",
+    "role": "admin",
+    "isActive": true
+  }
+}
+```
+
+---
+
+## Deactivate user
+
+`DELETE /api/auth/users/:id`
+
+Soft-deletes a user by setting `isActive` to `false`. The user record is preserved in the database and can be restored with the [reactivate endpoint](#reactivate-user).
+
+**Auth required:** Yes — `Authorization: Bearer <token>` (admin role)
+
+<Warning>
+  An admin cannot deactivate their own account. Attempting to do so returns a `400 Bad Request` error. Admins also cannot deactivate other `admin` or `root` accounts — only a `root` user can do so.
+</Warning>
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  MongoDB ObjectId of the user to deactivate.
+</ParamField>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated user document reflecting the deactivated state.
+  <Expandable title="properties">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="username" type="string">
+      Display name.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      Role assigned to the user.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      `false` after deactivation.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | Attempting to deactivate your own account. |
+| `401`  | Missing or invalid token. |
+| `403`  | Insufficient role, or attempting to deactivate an `admin`/`root` account without `root` privileges. |
+| `404`  | No user found with the given ID. |
+
+### Example
+
+```bash cURL
+curl --request DELETE \
+  --url https://api.kilometracker.app/api/auth/users/6642f3a1c3d4e5f6a7b8c9d0 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Usuario desactivado correctamente",
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "username": "jane",
+    "email": "jane@example.com",
+    "role": "write",
+    "isActive": false
+  }
+}
+```
+
+---
+
+## Reactivate user
+
+`PATCH /api/auth/users/:id/reactivate`
+
+Restores a previously deactivated user by setting `isActive` back to `true`.
+
+**Auth required:** Yes — `Authorization: Bearer <token>` (admin role)
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  MongoDB ObjectId of the user to reactivate.
+</ParamField>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated user document reflecting the reactivated state.
+  <Expandable title="properties">
+    <ResponseField name="_id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      `true` after reactivation.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Missing or invalid token. |
+| `403`  | Authenticated user does not have the `admin` role. |
+| `404`  | No user found with the given ID. |
+
+### Example
+
+```bash cURL
+curl --request PATCH \
+  --url https://api.kilometracker.app/api/auth/users/6642f3a1c3d4e5f6a7b8c9d0/reactivate \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Usuario reactivado correctamente",
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "isActive": true
+  }
+}
+```

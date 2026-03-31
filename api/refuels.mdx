@@ -1,0 +1,295 @@
+---
+title: "Refuels"
+description: "Record fuel refuels and analyze fuel efficiency by vehicle."
+---
+
+## GET /api/refuels
+
+List all refuel records for the authenticated user.
+
+**Auth:** Any authenticated user.
+
+<ParamField query="vehicleAlias" type="string">
+  Filter refuels by vehicle alias (e.g. `CAR1`).
+</ParamField>
+
+<ParamField query="tipoCombustible" type="string">
+  Filter by fuel type. One of: `Regular`, `Premium`, `Diesel`, `Eléctrico`, `Híbrido`, `V-Power`.
+</ParamField>
+
+<ParamField query="startDate" type="string">
+  Return refuels on or after this date. Format: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="endDate" type="string">
+  Return refuels on or before this date. Format: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="page" type="number">
+  Page number for pagination. Defaults to `1`.
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Results per page. Defaults to `10`, maximum `100`.
+</ParamField>
+
+```bash
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/refuels?vehicleAlias=CAR1' \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "count": 25,
+  "data": [
+    {
+      "_id": "string",
+      "vehicleAlias": "CAR1",
+      "vehicle": {
+        "_id": "string",
+        "alias": "CAR1",
+        "marca": "Toyota",
+        "modelo": 2023
+      },
+      "tipoCombustible": "Premium",
+      "cantidadGastada": 500,
+      "galones": 10,
+      "fecha": "2024-11-24T10:30:00.000Z",
+      "owner": "string",
+      "precioPorGalon": "50.00",
+      "createdAt": "2024-11-24T10:30:00.000Z",
+      "updatedAt": "2024-11-24T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## POST /api/refuels
+
+Create a new refuel record.
+
+**Auth:** Write or Admin role required.
+
+<Tip>
+  `precioPorGalon` is a virtual field — it is not stored in the database. It is computed on read as `cantidadGastada / galones`. If `galones` is omitted, `precioPorGalon` will not be present in the response.
+</Tip>
+
+<ParamField body="vehicleAlias" type="string" required>
+  Alias of the vehicle being refueled (e.g. `CAR1`).
+</ParamField>
+
+<ParamField body="tipoCombustible" type="string" required>
+  Fuel type. Must be one of: `Regular`, `Premium`, `Diesel`, `Eléctrico`, `Híbrido`, `V-Power`.
+</ParamField>
+
+<ParamField body="cantidadGastada" type="number" required>
+  Amount spent on the refuel in Guatemalan Quetzales (Q). Minimum value: `0`.
+</ParamField>
+
+<ParamField body="galones" type="number">
+  Number of gallons purchased. Minimum value: `0`. Used to calculate the virtual field `precioPorGalon`.
+</ParamField>
+
+```bash
+curl --request POST \
+  --url https://api.kilometracker.com/api/refuels \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "vehicleAlias": "CAR1",
+    "tipoCombustible": "Premium",
+    "cantidadGastada": 500,
+    "galones": 10
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "vehicleAlias": "CAR1",
+    "vehicle": "string",
+    "tipoCombustible": "Premium",
+    "cantidadGastada": 500,
+    "galones": 10,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "owner": "string",
+    "precioPorGalon": "50.00"
+  }
+}
+```
+
+---
+
+## GET /api/refuels/:id
+
+Get a single refuel record by its ID.
+
+**Auth:** Any authenticated user.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the refuel record.
+</ParamField>
+
+```bash
+curl --request GET \
+  --url https://api.kilometracker.com/api/refuels/64f1a2b3c4d5e6f7a8b9c0d2 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "vehicleAlias": "CAR1",
+    "vehicle": {
+      "_id": "string",
+      "alias": "CAR1",
+      "marca": "Toyota",
+      "modelo": 2023
+    },
+    "tipoCombustible": "Premium",
+    "cantidadGastada": 500,
+    "galones": 10,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "owner": "string",
+    "precioPorGalon": "50.00"
+  }
+}
+```
+
+---
+
+## PUT /api/refuels/:id
+
+Update an existing refuel record. All fields are optional; only the provided fields are modified.
+
+**Auth:** Write or Admin role required.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the refuel record.
+</ParamField>
+
+<ParamField body="vehicleAlias" type="string">
+  Alias of the vehicle.
+</ParamField>
+
+<ParamField body="tipoCombustible" type="string">
+  Updated fuel type. Must be one of: `Regular`, `Premium`, `Diesel`, `Eléctrico`, `Híbrido`, `V-Power`.
+</ParamField>
+
+<ParamField body="cantidadGastada" type="number">
+  Updated amount spent in Guatemalan Quetzales (Q).
+</ParamField>
+
+<ParamField body="galones" type="number">
+  Updated number of gallons purchased.
+</ParamField>
+
+```bash
+curl --request PUT \
+  --url https://api.kilometracker.com/api/refuels/64f1a2b3c4d5e6f7a8b9c0d2 \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "cantidadGastada": 550,
+    "galones": 11
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "vehicleAlias": "CAR1",
+    "tipoCombustible": "Premium",
+    "cantidadGastada": 550,
+    "galones": 11
+  }
+}
+```
+
+---
+
+## DELETE /api/refuels/:id
+
+Permanently delete a refuel record.
+
+**Auth:** Write or Admin role required.
+
+<Warning>
+  This action is permanent and cannot be undone. There is no recovery option once a refuel record is deleted.
+</Warning>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the refuel record to delete.
+</ParamField>
+
+```bash
+curl --request DELETE \
+  --url https://api.kilometracker.com/api/refuels/64f1a2b3c4d5e6f7a8b9c0d2 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "message": "Reabastecimiento eliminado correctamente"
+}
+```
+
+---
+
+## GET /api/refuels/vehicle/:alias/analysis
+
+Get a fuel cost and consumption analysis for a specific vehicle, broken down by fuel type.
+
+**Auth:** Any authenticated user.
+
+<ParamField path="alias" type="string" required>
+  The alias of the vehicle to analyze (e.g. `CAR1`).
+</ParamField>
+
+```bash
+curl --request GET \
+  --url https://api.kilometracker.com/api/refuels/vehicle/CAR1/analysis \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "vehicle": {
+      "alias": "CAR1",
+      "marca": "Toyota",
+      "modelo": 2023
+    },
+    "summary": {
+      "totalReabastecimientos": "25",
+      "totalGastado": "12500.50",
+      "totalGalones": "250.00",
+      "promedioGalonPrice": "50.00"
+    },
+    "porTipoCombustible": {
+      "Premium": {
+        "cantidad": 20,
+        "gasto": 10000,
+        "galones": 200
+      },
+      "Regular": {
+        "cantidad": 5,
+        "gasto": 2500,
+        "galones": 50
+      }
+    }
+  }
+}
+```

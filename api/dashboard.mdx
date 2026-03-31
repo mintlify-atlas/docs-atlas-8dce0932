@@ -1,0 +1,160 @@
+---
+title: 'Dashboard'
+description: 'Get aggregated statistics across all vehicles for an overview of fleet activity.'
+---
+
+`GET /api/dashboard`
+
+Returns a fleet-wide summary aggregated across all of the authenticated user's active vehicles. The response includes top-level metrics, per-vehicle statistics, and upcoming maintenance alerts.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+<Note>
+  This endpoint aggregates data across all active vehicles. If you have no active vehicles, it returns an empty summary with no alerts.
+</Note>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties" defaultOpen>
+    <ResponseField name="summary" type="object">
+      Top-level metrics across the entire fleet.
+      <Expandable title="properties">
+        <ResponseField name="totalVehicles" type="number">
+          Number of active vehicles registered to the account.
+        </ResponseField>
+        <ResponseField name="totalKmAllVehicles" type="number">
+          Combined odometer total across all active vehicles, in km.
+        </ResponseField>
+        <ResponseField name="totalSpentLast30Days" type="number">
+          Total spending over the last 30 days in Q (quetzales), summing fuel, maintenance, and other expenses across all vehicles.
+        </ResponseField>
+        <ResponseField name="kmThisMonth" type="number">
+          Total kilometers driven across all vehicles since the start of the current calendar month.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="vehicles" type="object[]">
+      Array of per-vehicle statistics, one entry per active vehicle.
+      <Expandable title="properties">
+        <ResponseField name="alias" type="string">
+          Vehicle alias (unique identifier).
+        </ResponseField>
+        <ResponseField name="marca" type="string">
+          Vehicle make.
+        </ResponseField>
+        <ResponseField name="modelo" type="number">
+          Vehicle model year.
+        </ResponseField>
+        <ResponseField name="kilometrajeTotal" type="number">
+          Current odometer reading for this vehicle, in km.
+        </ResponseField>
+        <ResponseField name="spentThisMonth" type="number">
+          Fuel spending for this vehicle in Q since the start of the current calendar month.
+        </ResponseField>
+        <ResponseField name="efficiency" type="object">
+          Fuel efficiency computed from all recorded refuels and routes for this vehicle.
+          <Expandable title="properties">
+            <ResponseField name="kmPorLitro" type="number">
+              Average kilometers per liter. Returns `0` if no refuel data is available.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="alerts" type="object[]">
+      Up to five upcoming maintenance alerts, sorted by due date ascending. Each alert corresponds to a maintenance record whose next service date falls within the next 30 days.
+      <Expandable title="properties">
+        <ResponseField name="type" type="string">
+          Alert type. Currently always `"maintenance"`.
+        </ResponseField>
+        <ResponseField name="vehicleAlias" type="string">
+          Alias of the vehicle that has upcoming maintenance due.
+        </ResponseField>
+        <ResponseField name="message" type="string">
+          Human-readable description of the alert, for example `"Cambio de aceite vence en 5 días"`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```bash cURL
+curl --request GET \
+  --url https://api.kilometracker.app/api/dashboard \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "totalVehicles": 2,
+      "totalKmAllVehicles": 47320.5,
+      "totalSpentLast30Days": 2180.75,
+      "kmThisMonth": 1340.0
+    },
+    "vehicles": [
+      {
+        "alias": "CAR1",
+        "marca": "Toyota",
+        "modelo": 2023,
+        "kilometrajeTotal": 19500,
+        "spentThisMonth": 850.0,
+        "efficiency": {
+          "kmPorLitro": 12.4
+        }
+      },
+      {
+        "alias": "TRUCK1",
+        "marca": "Ford",
+        "modelo": 2021,
+        "kilometrajeTotal": 27820.5,
+        "spentThisMonth": 1330.75,
+        "efficiency": {
+          "kmPorLitro": 8.7
+        }
+      }
+    ],
+    "alerts": [
+      {
+        "type": "maintenance",
+        "vehicleAlias": "CAR1",
+        "message": "Cambio de aceite vence en 5 días"
+      },
+      {
+        "type": "maintenance",
+        "vehicleAlias": "TRUCK1",
+        "message": "Inspección vence en 12 días"
+      }
+    ]
+  }
+}
+```
+
+## Empty fleet response
+
+When the authenticated user has no active vehicles, the endpoint returns a minimal response with zeroed-out summary fields and empty arrays.
+
+```json Response (no active vehicles)
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "totalVehicles": 0,
+      "totalKmAllVehicles": 0,
+      "totalSpentLast30Days": 0,
+      "kmThisMonth": 0
+    },
+    "vehicles": [],
+    "alerts": []
+  }
+}
+```

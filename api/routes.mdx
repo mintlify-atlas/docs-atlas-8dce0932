@@ -1,0 +1,248 @@
+---
+title: "Routes"
+description: "Log trips and track vehicle mileage. Each route automatically updates the vehicle's total kilometrage."
+---
+
+## GET /api/routes
+
+List all routes for the authenticated user. Results are sorted newest first.
+
+**Auth:** Any authenticated user.
+
+<ParamField query="vehicleAlias" type="string">
+  Filter routes by vehicle alias (e.g. `CAR1`).
+</ParamField>
+
+<ParamField query="startDate" type="string">
+  Return routes on or after this date. Format: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="endDate" type="string">
+  Return routes on or before this date. Format: `YYYY-MM-DD`.
+</ParamField>
+
+<ParamField query="page" type="number">
+  Page number for pagination. Defaults to `1`.
+</ParamField>
+
+<ParamField query="limit" type="number">
+  Results per page. Defaults to `10`, maximum `100`.
+</ParamField>
+
+```bash
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/routes?vehicleAlias=CAR1&startDate=2024-01-01&endDate=2024-12-31' \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "count": 10,
+  "data": [
+    {
+      "_id": "string",
+      "vehicleAlias": "CAR1",
+      "vehicle": {
+        "_id": "string",
+        "alias": "CAR1",
+        "marca": "Toyota",
+        "modelo": 2023
+      },
+      "fecha": "2024-11-24T10:30:00.000Z",
+      "distanciaRecorrida": 150.5,
+      "notasAdicionales": "Viaje a la playa",
+      "owner": "string",
+      "createdAt": "2024-11-24T10:30:00.000Z",
+      "updatedAt": "2024-11-24T10:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 50,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5,
+    "hasNextPage": true,
+    "hasPrevPage": false,
+    "nextPage": 2,
+    "prevPage": null
+  }
+}
+```
+
+---
+
+## POST /api/routes
+
+Create a new route. The vehicle's `kilometrajeTotal` is incremented by `distanciaRecorrida` upon creation.
+
+**Auth:** Write or Admin role required.
+
+<Note>
+  Only active vehicles can receive new routes. Creating a route for a deactivated vehicle returns a 400 error.
+</Note>
+
+<ParamField body="vehicleAlias" type="string" required>
+  Alias of the vehicle to log the route against (e.g. `CAR1`).
+</ParamField>
+
+<ParamField body="distanciaRecorrida" type="number" required>
+  Distance traveled in kilometers. Minimum value: `0.1`.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  Date and time of the route. Defaults to the current date and time if omitted. ISO 8601 format.
+</ParamField>
+
+<ParamField body="notasAdicionales" type="string">
+  Optional free-text notes about the trip.
+</ParamField>
+
+```bash
+curl --request POST \
+  --url https://api.kilometracker.com/api/routes \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "vehicleAlias": "CAR1",
+    "distanciaRecorrida": 150.5,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "notasAdicionales": "Viaje a la playa"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "vehicleAlias": "CAR1",
+    "vehicle": "string",
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "distanciaRecorrida": 150.5,
+    "notasAdicionales": "Viaje a la playa",
+    "owner": "string"
+  }
+}
+```
+
+---
+
+## GET /api/routes/:id
+
+Get a single route by its ID.
+
+**Auth:** Any authenticated user.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the route.
+</ParamField>
+
+```bash
+curl --request GET \
+  --url https://api.kilometracker.com/api/routes/64f1a2b3c4d5e6f7a8b9c0d1 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "vehicleAlias": "CAR1",
+    "vehicle": {
+      "_id": "string",
+      "alias": "CAR1",
+      "marca": "Toyota",
+      "modelo": 2023
+    },
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "distanciaRecorrida": 150.5,
+    "notasAdicionales": "string",
+    "owner": "string"
+  }
+}
+```
+
+---
+
+## PUT /api/routes/:id
+
+Update an existing route. All fields are optional; only the provided fields are modified.
+
+**Auth:** Write or Admin role required.
+
+When `distanciaRecorrida` is changed, the API calculates the difference between the old and new values and adjusts the vehicle's `kilometrajeTotal` accordingly.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the route.
+</ParamField>
+
+<ParamField body="vehicleAlias" type="string">
+  Alias of the vehicle.
+</ParamField>
+
+<ParamField body="distanciaRecorrida" type="number">
+  Updated distance in kilometers. Changing this value recalculates the diff and adjusts the vehicle's odometer.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  Updated date and time of the route. ISO 8601 format.
+</ParamField>
+
+<ParamField body="notasAdicionales" type="string">
+  Updated free-text notes.
+</ParamField>
+
+```bash
+curl --request PUT \
+  --url https://api.kilometracker.com/api/routes/64f1a2b3c4d5e6f7a8b9c0d1 \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "distanciaRecorrida": 200.0,
+    "notasAdicionales": "Updated: longer route"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "vehicleAlias": "CAR1",
+    "distanciaRecorrida": 200.0,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "notasAdicionales": "Updated: longer route"
+  }
+}
+```
+
+---
+
+## DELETE /api/routes/:id
+
+Permanently delete a route.
+
+**Auth:** Write or Admin role required.
+
+<Warning>
+  This action is permanent and cannot be undone. Deleting a route decrements the vehicle's `kilometrajeTotal` by the route's `distanciaRecorrida`. There is no recovery option.
+</Warning>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the route to delete.
+</ParamField>
+
+```bash
+curl --request DELETE \
+  --url https://api.kilometracker.com/api/routes/64f1a2b3c4d5e6f7a8b9c0d1 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json
+{
+  "success": true,
+  "message": "Ruta eliminada correctamente"
+}
+```

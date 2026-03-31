@@ -1,0 +1,296 @@
+---
+title: 'Profile'
+description: 'View and update the authenticated user profile and password.'
+---
+
+This page covers three endpoints for managing your own account. All three require authentication.
+
+---
+
+## Get current profile
+
+`GET /api/auth/me`
+
+Returns the full profile of the currently authenticated user.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="username" type="string">
+      Display name.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Email address.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      Current role: `read`, `write`, or `admin`.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      Whether the account is active.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp of account creation.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 timestamp of last modification.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url https://api.kilometracker.app/api/auth/me \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "username": "jane",
+    "email": "jane@example.com",
+    "role": "write",
+    "isActive": true,
+    "createdAt": "2024-11-01T10:00:00.000Z",
+    "updatedAt": "2024-11-20T08:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Update profile
+
+`PUT /api/auth/updateprofile`
+
+Updates the username and/or email address for the authenticated user.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Request body
+
+<ParamField body="username" type="string">
+  New display name. Minimum 3 characters. Must be unique.
+</ParamField>
+
+<ParamField body="email" type="string">
+  New email address. Must be a valid email and unique across all accounts.
+</ParamField>
+
+<Note>
+  Both fields are optional, but at least one should be provided. Omitted fields are not changed.
+</Note>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated user document.
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      MongoDB ObjectId.
+    </ResponseField>
+    <ResponseField name="username" type="string">
+      Updated username.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      Updated email address.
+    </ResponseField>
+    <ResponseField name="role" type="string">
+      Current role.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean">
+      Account status.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | Validation error or duplicate username/email. |
+| `401`  | Missing or invalid token. |
+
+### Example
+
+```bash cURL
+curl --request PUT \
+  --url https://api.kilometracker.app/api/auth/updateprofile \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "username": "jane_updated",
+    "email": "jane_new@example.com"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "username": "jane_updated",
+    "email": "jane_new@example.com",
+    "role": "write",
+    "isActive": true
+  }
+}
+```
+
+---
+
+## Change password
+
+`PUT /api/auth/updatepassword`
+
+Changes the password for the authenticated user. Requires the current password to confirm identity.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Request body
+
+<ParamField body="currentPassword" type="string" required>
+  The user's current password. Must match the stored password or the request will be rejected.
+</ParamField>
+
+<ParamField body="newPassword" type="string" required>
+  The replacement password. Minimum 6 characters.
+</ParamField>
+
+### Response
+
+#### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` on success.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message.
+</ResponseField>
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | `newPassword` does not meet the minimum length requirement. |
+| `401`  | `currentPassword` does not match the stored password, or the token is invalid. |
+
+### Example
+
+```bash cURL
+curl --request PUT \
+  --url https://api.kilometracker.app/api/auth/updatepassword \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "currentPassword": "s3cur3pass",
+    "newPassword": "n3wP@ssword"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Contraseña actualizada correctamente"
+}
+```
+
+---
+
+## Request password reset
+
+`POST /api/auth/forgotpassword`
+
+Sends a password reset email to the provided address. To prevent account enumeration, the response is always `200 OK` regardless of whether the email exists in the system.
+
+**Auth required:** No
+
+<ParamField body="email" type="string" required>
+  Email address associated with the account.
+</ParamField>
+
+```bash cURL
+curl --request POST \
+  --url https://your-deployment.railway.app/api/auth/forgotpassword \
+  --header 'Content-Type: application/json' \
+  --data '{"email": "maria@example.com"}'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Si el email está registrado, recibirás instrucciones para restablecer tu contraseña."
+}
+```
+
+<Note>
+  The reset link sent by email is valid for **1 hour**. After expiry, you must request a new one.
+</Note>
+
+---
+
+## Reset password with token
+
+`PUT /api/auth/resetpassword/:token`
+
+Resets the account password using the token received by email. On success, returns a new JWT token so you can immediately authenticate.
+
+**Auth required:** No
+
+<ParamField path="token" type="string" required>
+  The reset token from the email link.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  New password. Minimum 6 characters.
+</ParamField>
+
+```bash cURL
+curl --request PUT \
+  --url https://your-deployment.railway.app/api/auth/resetpassword/abc123resettoken \
+  --header 'Content-Type: application/json' \
+  --data '{"password": "mynewsecurepass"}'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "6476a1b2c3d4e5f678901234",
+      "username": "maria",
+      "email": "maria@example.com",
+      "role": "write"
+    },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+#### Error responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | Token is invalid or expired, or password is too short. |

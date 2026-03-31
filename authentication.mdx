@@ -1,0 +1,156 @@
+---
+title: "Authentication"
+description: "Obtain a JWT token and authenticate every request to the KilomeTracker API."
+---
+
+The KilomeTracker API uses JWT Bearer token authentication. You obtain a token by registering or logging in, then send it in the `Authorization` header on every protected request.
+
+## Getting a token
+
+Two endpoints return a token:
+
+- **`POST /api/auth/register`** — creates a new account and returns a token immediately.
+- **`POST /api/auth/login`** — authenticates an existing account and returns a fresh token.
+
+Both endpoints return the same response shape:
+
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "6476a1b2c3d4e5f678901234",
+      "username": "maria",
+      "email": "maria@example.com",
+      "role": "write"
+    },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+<ResponseField name="data.token" type="string" required>
+  JWT token. Send this value in the `Authorization` header on every authenticated request.
+</ResponseField>
+<ResponseField name="data.user.role" type="string" required>
+  The role assigned to this account. Determines which endpoints you can call.
+</ResponseField>
+
+## Sending the token
+
+Include the token in the `Authorization` request header using the `Bearer` scheme:
+
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+**Example curl request:**
+
+```bash
+curl https://your-deployment.railway.app/api/auth/me \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+<Warning>
+  The header value must start with the word `Bearer` followed by a single space and then the token. Sending just the raw token without the `Bearer` prefix will result in a `401` error.
+</Warning>
+
+## Token expiry
+
+Tokens are valid for **7 days** by default. After expiry, protected endpoints return a `401` response.
+
+When you receive a `401`, re-authenticate by calling `POST /api/auth/login` with your credentials to obtain a new token.
+
+<Tip>
+  Store the token securely and avoid logging it. If a token is compromised, an admin can deactivate your account to immediately invalidate it.
+</Tip>
+
+## Rate limits on auth endpoints
+
+Authentication endpoints have a stricter rate limit than the rest of the API:
+
+| Endpoint group | Limit |
+|---------------|-------|
+| `/api/auth/register`, `/api/auth/login` | 100 requests per 15 minutes |
+| All other endpoints | 500 requests per 15 minutes |
+
+When the limit is exceeded you receive a `429` response with a `retryAfter` value in seconds.
+
+## Error responses
+
+### 401 Unauthorized
+
+Returned when the token is missing, malformed, or expired — or when the account has been deactivated.
+
+```json
+{
+  "success": false,
+  "error": "No autorizado - Token inválido"
+}
+```
+
+Common causes:
+
+- No `Authorization` header was sent.
+- The token value is malformed or has been tampered with.
+- The token has expired (re-authenticate to get a new one).
+- The account associated with the token has been deactivated by an admin.
+
+### 403 Forbidden
+
+Returned when a valid token is present but the account's role does not have permission to call the endpoint.
+
+```json
+{
+  "success": false,
+  "error": "El rol read no tiene permisos para esta acción"
+}
+```
+
+For example, a `read` role user calling `POST /api/vehicles` (which requires `write` or `admin`) receives this error. Contact your admin to have your role upgraded.
+
+## Roles
+
+Every account has one of four roles. The role is set at registration and can be changed by an `admin` or `root` user.
+
+| Role | Description |
+|------|-------------|
+| `read` | View all resources belonging to the account. Cannot create, update, or delete any data. |
+| `write` | Full CRUD on their own vehicles, trips, refuels, maintenance records, and expenses. |
+| `admin` | Everything `write` can do, plus user management: list users, update roles, and deactivate or reactivate accounts. |
+| `root` | Full system access, including permanent user deletion with cascade removal of all associated data. |
+
+<Note>
+  New accounts created via `POST /api/auth/register` default to the `read` role unless a `role` field is provided in the request body. An `admin` or `root` must upgrade the role to `write` before the account can create data.
+</Note>
+
+### Which role do I need?
+
+- To **read** your vehicles, trips, or stats: `read` or higher.
+- To **create, update, or delete** vehicles, trips, refuels, maintenance, or expenses: `write` or `admin`.
+- To **manage other users** (list, update roles, deactivate): `admin` or `root`.
+
+## Changing your password
+
+Authenticated users can change their own password without re-registering:
+
+```bash
+curl -X PUT https://your-deployment.railway.app/api/auth/updatepassword \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "currentPassword": "mysecretpass",
+    "newPassword": "mynewsecretpass"
+  }'
+```
+
+A successful change returns:
+
+```json
+{
+  "success": true,
+  "message": "Contraseña actualizada correctamente"
+}
+```
+
+Your existing token remains valid after a password change. To invalidate all sessions, an admin can deactivate and then reactivate the account.

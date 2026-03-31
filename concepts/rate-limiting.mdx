@@ -1,0 +1,125 @@
+---
+title: 'Rate Limiting'
+description: 'How KilomeTracker throttles requests to protect the API from abuse.'
+keywords: ['rate limiting', '429', 'throttle', 'auth limiter', 'api limiter', 'retryAfter']
+---
+
+## Overview
+
+KilomeTracker applies rate limiting at the server level using an in-memory counter keyed by client IP address. Two tiers of limits exist: a stricter limit on authentication endpoints and a more permissive limit on the rest of the API.
+
+The implementation lives in `middleware/rateLimiter.js`. Counters are stored in memory and cleared automatically every hour. Note that because the store is in-memory, counters reset on server restart and are not shared across multiple server instances.
+
+---
+
+## Limit tiers
+
+| Tier | Applies to | Max requests | Window |
+| ---- | ---------- | :----------: | ------ |
+| Auth limiter | `/api/auth/login`, `/api/auth/register` | 100 | 15 minutes |
+| API limiter | All other endpoints | 500 | 15 minutes |
+
+<Note>
+Both windows are sliding from the time of the first request. When the window expires, the counter resets automatically on the next request.
+</Note>
+
+---
+
+## Which endpoints use which limiter
+
+### Auth rate limit (100 req / 15 min)
+
+The stricter limiter covers the two public authentication endpoints:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+
+These are the only endpoints callable without a token, making them the most exposed to automated abuse.
+
+### General API rate limit (500 req / 15 min)
+
+All other routes — vehicles, routes, refuels, maintenance, expenses, and authenticated user-management endpoints — fall under the general limiter.
+
+---
+
+## 429 response format
+
+When a client exceeds either limit the API responds with HTTP `429` and the following JSON body:
+
+```json
+{
+  "success": false,
+  "error": "Demasiadas solicitudes, por favor intenta de nuevo más tarde",
+  "retryAfter": 743
+}
+```
+
+| Field        | Type    | Description                                              |
+| ------------ | ------- | -------------------------------------------------------- |
+| `success`    | Boolean | Always `false` for error responses                       |
+| `error`      | String  | Human-readable message describing the limit exceeded     |
+| `retryAfter` | Number  | Seconds remaining until the current window resets        |
+
+The auth limiter returns a more specific message:
+
+```json
+{
+  "success": false,
+  "error": "Demasiados intentos de login, por favor intenta de nuevo en 15 minutos",
+  "retryAfter": 743
+}
+```
+
+---
+
+## Handling rate limit responses in client code
+
+<Tip>
+Always check the HTTP status code before parsing the response body. A `429` can arrive from any endpoint, including those that normally return a different shape.
+</Tip>
+
+Read `retryAfter` from the response body and wait that many seconds before retrying. Avoid retrying immediately in a tight loop — even a single failed retry counts against the remaining quota.
+
+```javascript
+async function apiFetch(url, options) {
+  const response = await fetch(url, options);
+
+  if (response.status === 429) {
+    const body = await response.json();
+    const waitMs = (body.retryAfter ?? 60) * 1000;
+    console.warn(`Rate limited. Retrying in ${body.retryAfter}s`);
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+    return apiFetch(url, options); // single retry
+  }
+
+  return response;
+}
+```
+
+<Warning>
+Recursive retries without a maximum attempt count can cause unbounded loops if the server remains under load. Add a retry counter or use exponential backoff for production clients.
+</Warning>
+
+For background sync or batch operations, implement exponential backoff with jitter:
+
+```javascript
+async function fetchWithBackoff(url, options, attempt = 1) {
+  const response = await fetch(url, options);
+
+  if (response.status === 429 && attempt <= 4) {
+    const body = await response.json();
+    const base = (body.retryAfter ?? 60) * 1000;
+    const jitter = Math.random() * 1000;
+    await new Promise(resolve => setTimeout(resolve, base + jitter));
+    return fetchWithBackoff(url, options, attempt + 1);
+  }
+
+  return response;
+}
+```
+
+---
+
+## Testing behavior
+
+Rate limiting is **disabled in the test environment**. The middleware checks `process.env.NODE_ENV` and calls `next()` immediately when the value is `test`. Set `NODE_ENV=test` in your test runner configuration to avoid flaky tests caused by the in-memory counter.

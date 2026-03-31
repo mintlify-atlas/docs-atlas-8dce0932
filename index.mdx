@@ -1,97 +1,71 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "KilomeTracker API"
+description: "A REST API for vehicle management — track mileage, fuel, maintenance, and expenses with JWT authentication and role-based access control."
 ---
 
-## Setting up
+KilomeTracker is a vehicle management API designed for individual drivers and small fleets. It gives you a complete picture of your vehicles: every kilometer driven, every fuel stop, every service visit, and every associated expense — all in one place.
 
-Get your documentation site up and running in minutes.
+The API exposes over 40 endpoints organized by resource, with JWT-based auth, role-based permissions, and pagination on every list endpoint.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first authenticated API call in minutes
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how to obtain and use JWT tokens
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="API Reference" icon="code" href="/api/auth/register">
+    Full endpoint reference with request and response schemas
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Data Model" icon="database" href="/concepts/data-model">
+    Understand how vehicles, trips, refuels, and expenses relate
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What you can do
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Vehicle Management" icon="car" href="/guides/vehicle-lifecycle">
+    Register vehicles, track odometer totals automatically, and manage their lifecycle with soft delete and reactivation.
+  </Card>
+  <Card title="Trip Tracking" icon="route" href="/guides/tracking-trips">
+    Log trips by distance. Each route automatically increments the vehicle's total kilometrage in real time.
+  </Card>
+  <Card title="Fuel Efficiency" icon="gas-pump" href="/guides/fuel-efficiency">
+    Record refuels and get analytics: km/liter, km/gallon, cost per kilometer, and spending by fuel type.
+  </Card>
+  <Card title="Maintenance Alerts" icon="wrench" href="/guides/maintenance-alerts">
+    Log service records and get proactive alerts for maintenance due within 30 days or 500 km.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## How it works
 
-## Need inspiration?
+<Steps>
+  <Step title="Register and get a token">
+    Call `POST /api/auth/register` to create an account. You'll receive a JWT token to use on subsequent requests.
+  </Step>
+  <Step title="Add a vehicle">
+    Call `POST /api/vehicles` with an alias, make, model, and initial odometer reading. The API tracks the total from there.
+  </Step>
+  <Step title="Log activity">
+    Record trips, refuels, maintenance visits, and expenses against your vehicle using its alias.
+  </Step>
+  <Step title="Analyze and act">
+    Query `/api/vehicles/:alias/stats` or `/api/dashboard` for aggregated cost-of-ownership data and efficiency metrics.
+  </Step>
+</Steps>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Base URL
+
+All endpoints are relative to your deployment base URL:
+
+```
+https://your-deployment.railway.app
+```
+
+All requests and responses use `Content-Type: application/json`.
+
+<Note>
+  The currency used throughout the system is the **Guatemalan Quetzal (Q)**. Monetary fields like `cantidadGastada`, `costo`, and `monto` are denominated in GTQ.
+</Note>

@@ -1,0 +1,113 @@
+---
+title: 'Register'
+description: 'Create a new user account and receive a JWT for authenticated requests.'
+---
+
+`POST /api/auth/register`
+
+Creates a new user account. Returns the created user and a JWT token on success.
+
+<Note>
+  This endpoint is rate limited to **5 requests per 15 minutes** per IP address to prevent abuse.
+</Note>
+
+## Request body
+
+<ParamField body="username" type="string" required>
+  Unique display name for the user. Minimum 3 characters.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Valid email address. Must be unique across all accounts.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Account password. Minimum 6 characters. Stored as a bcrypt hash.
+</ParamField>
+
+<ParamField body="role" type="string" default="read">
+  Initial role for the account. One of `read`, `write`, or `admin`. Defaults to `read` if omitted.
+</ParamField>
+
+## Response
+
+### 201 Created
+
+<ResponseField name="success" type="boolean">
+  `true` when the request succeeds.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="user" type="object">
+      <Expandable title="properties">
+        <ResponseField name="id" type="string">
+          MongoDB ObjectId of the new user.
+        </ResponseField>
+        <ResponseField name="username" type="string">
+          The registered username.
+        </ResponseField>
+        <ResponseField name="email" type="string">
+          The registered email address.
+        </ResponseField>
+        <ResponseField name="role" type="string">
+          The assigned role (`read`, `write`, or `admin`).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="token" type="string">
+      Signed JWT. Include this as a Bearer token in the `Authorization` header for all protected requests.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | Validation error (missing fields, username too short, invalid email, password too short) or duplicate username/email. |
+| `429`  | Rate limit exceeded. Retry after the number of seconds indicated in `retryAfter`. |
+
+```json 400 – duplicate email
+{
+  "success": false,
+  "error": "E11000 duplicate key error — email already registered"
+}
+```
+
+```json 429 – rate limit exceeded
+{
+  "success": false,
+  "error": "Demasiadas solicitudes, por favor intenta de nuevo más tarde",
+  "retryAfter": 900
+}
+```
+
+## Example
+
+```bash cURL
+curl --request POST \
+  --url https://api.kilometracker.app/api/auth/register \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "username": "jane",
+    "email": "jane@example.com",
+    "password": "s3cur3pass",
+    "role": "write"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "6642f3a1c3d4e5f6a7b8c9d0",
+      "username": "jane",
+      "email": "jane@example.com",
+      "role": "write"
+    },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```

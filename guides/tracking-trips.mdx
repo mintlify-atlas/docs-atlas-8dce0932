@@ -1,0 +1,187 @@
+---
+title: 'Tracking Trips'
+description: 'Log vehicle trips and understand how each route affects the odometer in KilomeTracker.'
+keywords: ['routes', 'trips', 'odometer', 'kilometrajeTotal', 'distance', 'date filter']
+---
+
+A route represents a single trip made by a vehicle. Every route you log increments the vehicle's `kilometrajeTotal` atomically, keeping the odometer accurate in real time. Deleting a route decrements it — so treat deletion as a permanent, irreversible action.
+
+<Note>
+  Only active vehicles can have new routes created. If you try to log a trip for a deactivated vehicle, the API returns a 404. See [Vehicle Lifecycle](/guides/vehicle-lifecycle) for reactivation instructions.
+</Note>
+
+---
+
+## Logging a trip
+
+Send `POST /api/routes` with the vehicle alias and the distance driven.
+
+```bash
+curl -X POST https://api.kilometracker.app/api/routes \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vehicleAlias": "HILUX01",
+    "distanciaRecorrida": 150.5,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "notasAdicionales": "Viaje a la playa"
+  }'
+```
+
+**Response (201):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "64f2b3c4d5e6f7a8b9c0d1e2",
+    "vehicleAlias": "HILUX01",
+    "vehicle": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "distanciaRecorrida": 150.5,
+    "notasAdicionales": "Viaje a la playa",
+    "owner": "64e0a1b2c3d4e5f6a7b8c9d0"
+  }
+}
+```
+
+The vehicle's `kilometrajeTotal` is incremented by `distanciaRecorrida` (150.5 km in this example) using an atomic database operation — no race conditions, even with concurrent requests.
+
+### Request fields
+
+<ParamField body="vehicleAlias" type="string" required>
+  The alias of the vehicle that made the trip. Case-insensitive — the API normalizes it to uppercase internally.
+</ParamField>
+
+<ParamField body="distanciaRecorrida" type="number" required>
+  Distance driven in kilometers. Minimum value: `0.1`.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  ISO 8601 date-time for the trip. Defaults to the current time if omitted.
+</ParamField>
+
+<ParamField body="notasAdicionales" type="string">
+  Optional free-text notes for the trip (e.g., destination, purpose).
+</ParamField>
+
+---
+
+## Listing trips
+
+`GET /api/routes` returns all routes you own, sorted newest first. Use query parameters to narrow results.
+
+<Tabs>
+  <Tab title="All trips">
+    ```bash
+    curl "https://api.kilometracker.app/api/routes" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+  <Tab title="By vehicle">
+    ```bash
+    curl "https://api.kilometracker.app/api/routes?vehicleAlias=HILUX01" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+  <Tab title="By date range">
+    ```bash
+    curl "https://api.kilometracker.app/api/routes?vehicleAlias=HILUX01&startDate=2024-01-01&endDate=2024-12-31" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+</Tabs>
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "64f2b3c4d5e6f7a8b9c0d1e2",
+      "vehicleAlias": "HILUX01",
+      "vehicle": {
+        "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+        "alias": "HILUX01",
+        "marca": "Toyota",
+        "modelo": 2021
+      },
+      "fecha": "2024-11-24T10:30:00.000Z",
+      "distanciaRecorrida": 150.5,
+      "notasAdicionales": "Viaje a la playa",
+      "owner": "64e0a1b2c3d4e5f6a7b8c9d0"
+    }
+  ]
+}
+```
+
+### Filter parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `vehicleAlias` | string | Filter to a single vehicle (case-insensitive) |
+| `startDate` | `YYYY-MM-DD` | Include only trips on or after this date |
+| `endDate` | `YYYY-MM-DD` | Include only trips on or before this date |
+
+---
+
+## Updating a trip
+
+Use `PUT /api/routes/:id` to correct a route's distance, date, or notes. If you change `distanciaRecorrida`, the API automatically calculates the difference from the old value and adjusts the vehicle's odometer by that delta.
+
+```bash
+curl -X PUT "https://api.kilometracker.app/api/routes/64f2b3c4d5e6f7a8b9c0d1e2" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "distanciaRecorrida": 175.0
+  }'
+```
+
+In this example, the vehicle's `kilometrajeTotal` increases by `24.5` km (175.0 − 150.5), atomically.
+
+You can also reassign a route to a different vehicle by passing a new `vehicleAlias`. When you do this, the full original distance is subtracted from the old vehicle's odometer and the new distance is added to the new vehicle's odometer.
+
+---
+
+## Deleting a trip
+
+<Warning>
+  Deleting a route is **permanent and irreversible**. The route record is removed from the database and the vehicle's `kilometrajeTotal` is decremented by the route's distance. There is no undo.
+</Warning>
+
+```bash
+curl -X DELETE "https://api.kilometracker.app/api/routes/64f2b3c4d5e6f7a8b9c0d1e2" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Ruta eliminada correctamente"
+}
+```
+
+---
+
+## Odometer behavior at a glance
+
+| Action | Effect on `kilometrajeTotal` |
+|---|---|
+| Create route | `+distanciaRecorrida` |
+| Update route distance | `+(new − old)` |
+| Reassign route to another vehicle | Old vehicle: `−oldDistance` / New vehicle: `+newDistance` |
+| Delete route | `−distanciaRecorrida` |
+
+<CardGroup cols={2}>
+  <Card title="Vehicle Lifecycle" icon="car" href="/guides/vehicle-lifecycle">
+    Understand the alias system and how the odometer is initialized.
+  </Card>
+  <Card title="Fuel Efficiency" icon="gauge" href="/guides/fuel-efficiency">
+    Pair trip data with refuel records to calculate km/liter.
+  </Card>
+</CardGroup>

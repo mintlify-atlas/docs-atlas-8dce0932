@@ -1,0 +1,190 @@
+---
+title: 'Vehicle Lifecycle'
+description: 'Manage vehicles end-to-end: create, update, deactivate, and reactivate using the KilomeTracker API.'
+keywords: ['vehicle', 'lifecycle', 'alias', 'odometer', 'soft delete', 'reactivate']
+---
+
+This guide walks you through the complete lifecycle of a vehicle in KilomeTracker — from creation to deactivation and back. Vehicles are the root entity in the data model: every trip, refuel, and maintenance record belongs to one.
+
+## Creating a vehicle
+
+Send a `POST /api/vehicles` request with the vehicle's details. The `alias` field becomes the vehicle's permanent identifier — it must be unique within your account and is automatically uppercased.
+
+<Steps>
+  <Step title="Set your starting odometer">
+    The `kilometrajeInicial` field records where the vehicle's odometer stands at the time you add it to KilomeTracker. This is the base from which all subsequent trip distance is accumulated. If your vehicle already has 45,000 km on the clock, set this value to `45000`.
+
+    <Note>
+      `kilometrajeTotal` is initialized to equal `kilometrajeInicial` when the vehicle is first saved. You do not need to set it — and you cannot update it directly later.
+    </Note>
+  </Step>
+  <Step title="Send the create request">
+
+    ```bash
+    curl -X POST https://api.kilometracker.app/api/vehicles \
+      -H "Authorization: Bearer <token>" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "alias": "hilux01",
+        "marca": "Toyota",
+        "modelo": 2021,
+        "plates": "P-123ABC",
+        "kilometrajeInicial": 45000
+      }'
+    ```
+
+    **Response (201):**
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+        "alias": "HILUX01",
+        "marca": "Toyota",
+        "modelo": 2021,
+        "plates": "P-123ABC",
+        "kilometrajeInicial": 45000,
+        "kilometrajeTotal": 45000,
+        "owner": "64e0a1b2c3d4e5f6a7b8c9d0",
+        "isActive": true,
+        "createdAt": "2024-11-24T10:30:00.000Z",
+        "updatedAt": "2024-11-24T10:30:00.000Z"
+      }
+    }
+    ```
+
+    Notice that `alias` is stored as `HILUX01` regardless of how you submitted it, and `kilometrajeTotal` matches `kilometrajeInicial`.
+  </Step>
+</Steps>
+
+### Request fields
+
+<ParamField body="alias" type="string" required>
+  Short name for the vehicle. Must be unique per account. Stored and queried in uppercase — all API routes use this as the URL parameter.
+</ParamField>
+
+<ParamField body="marca" type="string" required>
+  Vehicle make (e.g., `Toyota`, `Ford`).
+</ParamField>
+
+<ParamField body="modelo" type="number" required>
+  Model year. Must be between 1900 and the current year + 1.
+</ParamField>
+
+<ParamField body="plates" type="string">
+  License plate number. Optional. Stored in uppercase.
+</ParamField>
+
+<ParamField body="kilometrajeInicial" type="number" required>
+  The odometer reading at the time of registration. Minimum `0`. Sets the starting point for `kilometrajeTotal`.
+</ParamField>
+
+---
+
+## Updating a vehicle
+
+Use `PUT /api/vehicles/:alias` to update vehicle details. You can change `marca`, `modelo`, `plates`, and `kilometrajeInicial`.
+
+```bash
+curl -X PUT https://api.kilometracker.app/api/vehicles/HILUX01 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "plates": "P-456XYZ",
+    "modelo": 2022
+  }'
+```
+
+<Warning>
+  Two fields are permanently protected from direct updates:
+
+  - **`alias`** — cannot be changed after creation. Choose your alias carefully.
+  - **`kilometrajeTotal`** — managed automatically by the API as routes are logged. Any value you submit for this field is silently discarded.
+</Warning>
+
+---
+
+## How the odometer works
+
+`kilometrajeTotal` reflects the vehicle's current total distance tracked through KilomeTracker. It is not a direct database field you control — it increments automatically every time you log a trip.
+
+```
+kilometrajeTotal = kilometrajeInicial + sum(all logged trips)
+```
+
+See the [Tracking Trips](/guides/tracking-trips) guide for details on how route creation and deletion affect this value.
+
+---
+
+## Deactivating a vehicle (soft delete)
+
+Calling `DELETE /api/vehicles/:alias` does **not** remove the vehicle from the database. Instead, it sets `isActive` to `false`. All historical routes, refuels, and maintenance records are preserved.
+
+```bash
+curl -X DELETE https://api.kilometracker.app/api/vehicles/HILUX01 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Vehículo desactivado correctamente",
+  "data": {
+    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "alias": "HILUX01",
+    "isActive": false
+  }
+}
+```
+
+<Note>
+  Inactive vehicles still appear in `GET /api/vehicles` by default (the endpoint returns all vehicles). Pass `?isActive=true` to filter to active vehicles only, or `?isActive=false` to list only deactivated ones.
+</Note>
+
+---
+
+## Reactivating a vehicle
+
+To bring a deactivated vehicle back into service, call `PATCH /api/vehicles/:alias/reactivate`.
+
+```bash
+curl -X PATCH https://api.kilometracker.app/api/vehicles/HILUX01/reactivate \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Vehículo reactivado correctamente",
+  "data": {
+    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "alias": "HILUX01",
+    "isActive": true
+  }
+}
+```
+
+Once reactivated, the vehicle can have new routes, refuels, and maintenance records created against it again.
+
+---
+
+## Vehicle state summary
+
+| State | `isActive` | New routes allowed | Appears in list |
+|---|---|---|---|
+| Active | `true` | Yes | Yes |
+| Deactivated | `false` | No | Yes (unless filtered) |
+
+<CardGroup cols={2}>
+  <Card title="Tracking Trips" icon="route" href="/guides/tracking-trips">
+    Log trips against a vehicle and understand how the odometer updates.
+  </Card>
+  <Card title="Fuel Efficiency" icon="gauge" href="/guides/fuel-efficiency">
+    Track refuels and analyze fuel consumption metrics.
+  </Card>
+</CardGroup>

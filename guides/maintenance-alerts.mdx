@@ -1,0 +1,232 @@
+---
+title: 'Maintenance Alerts'
+description: 'Log vehicle service records and get upcoming maintenance alerts based on date and odometer thresholds.'
+keywords: ['maintenance', 'service', 'alerts', 'upcoming', 'oil change', 'odometer', 'schedule']
+---
+
+KilomeTracker lets you record every service event for a vehicle and schedule the next one — either by date, by odometer, or both. The upcoming alerts endpoint then surfaces anything that needs attention soon.
+
+---
+
+## Logging a service record
+
+Send `POST /api/maintenance` to record a completed service event.
+
+```bash
+curl -X POST https://api.kilometracker.app/api/maintenance \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vehicleAlias": "HILUX01",
+    "tipo": "Cambio de aceite",
+    "descripcion": "Cambio de aceite sintético 5W-30",
+    "costo": 350,
+    "kilometraje": 45000,
+    "proveedor": "Taller Mecánico XYZ",
+    "proximoServicioFecha": "2025-05-24",
+    "proximoServicioKm": 50000,
+    "notas": "Incluye cambio de filtro"
+  }'
+```
+
+**Response (201):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "64f4d5e6f7a8b9c0d1e2f3a4",
+    "vehicleAlias": "HILUX01",
+    "vehicle": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "tipo": "Cambio de aceite",
+    "descripcion": "Cambio de aceite sintético 5W-30",
+    "costo": 350,
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "kilometraje": 45000,
+    "proveedor": "Taller Mecánico XYZ",
+    "proximoServicioFecha": "2025-05-24T00:00:00.000Z",
+    "proximoServicioKm": 50000,
+    "notas": "Incluye cambio de filtro",
+    "owner": "64e0a1b2c3d4e5f6a7b8c9d0"
+  }
+}
+```
+
+### Request fields
+
+<ParamField body="vehicleAlias" type="string" required>
+  Alias of the vehicle that received service. Must belong to an active vehicle.
+</ParamField>
+
+<ParamField body="tipo" type="string" required>
+  Service type. One of: `Cambio de aceite`, `Rotación de llantas`, `Frenos`, `Inspección`, `Reparación`, `Batería`, `Filtros`, `Transmisión`, `Suspensión`, `Alineación`, `Otro`.
+</ParamField>
+
+<ParamField body="descripcion" type="string" required>
+  Free-text description of the work performed.
+</ParamField>
+
+<ParamField body="costo" type="number" required>
+  Cost of the service in Guatemalan Quetzales (Q). Minimum `0`.
+</ParamField>
+
+<ParamField body="kilometraje" type="number" required>
+  Odometer reading at the time of service. Minimum `0`.
+</ParamField>
+
+<ParamField body="proveedor" type="string">
+  Shop or mechanic name. Optional.
+</ParamField>
+
+<ParamField body="proximoServicioFecha" type="string">
+  ISO 8601 date for the next scheduled service. Set this to enable date-based alerts.
+</ParamField>
+
+<ParamField body="proximoServicioKm" type="number">
+  Odometer reading at which the next service is due. Set this to enable odometer-based alerts.
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Additional notes about the service. Optional.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  ISO 8601 date-time of the service. Defaults to the current time if omitted.
+</ParamField>
+
+---
+
+## Enabling future alerts
+
+Setting `proximoServicioFecha` and/or `proximoServicioKm` on a record is what makes it appear in upcoming maintenance alerts. You can set one, both, or neither.
+
+<Tip>
+  Set both fields when your service interval has both a time component and a mileage component — for example, an oil change due in 6 months **or** 5,000 km, whichever comes first.
+</Tip>
+
+---
+
+## Getting upcoming alerts
+
+`GET /api/maintenance/upcoming` returns all maintenance records that have either `proximoServicioFecha` or `proximoServicioKm` set. The response includes the vehicle's current `kilometrajeTotal` so you can compare it against the scheduled km threshold directly.
+
+```bash
+curl "https://api.kilometracker.app/api/maintenance/upcoming" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "64f4d5e6f7a8b9c0d1e2f3a4",
+      "vehicleAlias": "HILUX01",
+      "vehicle": {
+        "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+        "alias": "HILUX01",
+        "marca": "Toyota",
+        "modelo": 2021,
+        "kilometrajeTotal": 49500
+      },
+      "tipo": "Cambio de aceite",
+      "proximoServicioFecha": "2025-05-24T00:00:00.000Z",
+      "proximoServicioKm": 50000
+    }
+  ]
+}
+```
+
+In this example, the vehicle is at 49,500 km and the next oil change is due at 50,000 km — 500 km away. The date threshold and the odometer threshold are both returned so your application can determine which condition triggers first.
+
+<Note>
+  The `upcoming` endpoint returns every record that has a scheduled next service — it does not filter to a specific time or km window server-side. Filter and prioritize in your application based on `vehicle.kilometrajeTotal` vs `proximoServicioKm`, and the current date vs `proximoServicioFecha`. The API documentation notes a 30-day / 500 km heuristic as a typical threshold.
+</Note>
+
+---
+
+## Listing and filtering records
+
+`GET /api/maintenance` returns all service records you own, newest first. Combine query parameters to narrow results.
+
+<Tabs>
+  <Tab title="All records">
+    ```bash
+    curl "https://api.kilometracker.app/api/maintenance" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+  <Tab title="By vehicle">
+    ```bash
+    curl "https://api.kilometracker.app/api/maintenance?vehicleAlias=HILUX01" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+  <Tab title="By type and date">
+    ```bash
+    curl "https://api.kilometracker.app/api/maintenance?vehicleAlias=HILUX01&tipo=Cambio%20de%20aceite&startDate=2024-01-01&endDate=2024-12-31" \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+</Tabs>
+
+### Filter parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `vehicleAlias` | string | Filter to a single vehicle (case-insensitive) |
+| `tipo` | string | Filter by service type (exact match) |
+| `startDate` | `YYYY-MM-DD` | Include only records on or after this date |
+| `endDate` | `YYYY-MM-DD` | Include only records on or before this date |
+
+---
+
+## Deleting a record
+
+<Warning>
+  Deleting a maintenance record is **permanent and irreversible**. The record is removed from the database and cannot be recovered.
+</Warning>
+
+```bash
+curl -X DELETE "https://api.kilometracker.app/api/maintenance/64f4d5e6f7a8b9c0d1e2f3a4" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Mantenimiento eliminado correctamente"
+}
+```
+
+---
+
+## Supported service types
+
+| Value | Description |
+|---|---|
+| `Cambio de aceite` | Oil change |
+| `Rotación de llantas` | Tire rotation |
+| `Frenos` | Brakes |
+| `Inspección` | General inspection |
+| `Reparación` | Repair |
+| `Batería` | Battery |
+| `Filtros` | Filters |
+| `Transmisión` | Transmission |
+| `Suspensión` | Suspension |
+| `Alineación` | Wheel alignment |
+| `Otro` | Other |
+
+<CardGroup cols={2}>
+  <Card title="Vehicle Lifecycle" icon="car" href="/guides/vehicle-lifecycle">
+    Manage vehicle creation, deactivation, and reactivation.
+  </Card>
+  <Card title="Fuel Efficiency" icon="gauge" href="/guides/fuel-efficiency">
+    Track refuels and analyze consumption metrics.
+  </Card>
+</CardGroup>

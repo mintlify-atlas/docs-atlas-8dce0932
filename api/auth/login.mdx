@@ -1,0 +1,107 @@
+---
+title: 'Login'
+description: 'Authenticate with email and password to receive a JWT token.'
+---
+
+`POST /api/auth/login`
+
+Validates credentials and returns a JWT token for use in subsequent authenticated requests.
+
+<Note>
+  This endpoint is rate limited to **5 requests per 15 minutes** per IP address to prevent brute-force attacks.
+</Note>
+
+## Request body
+
+<ParamField body="email" type="string" required>
+  The email address associated with the account.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password.
+</ParamField>
+
+## Response
+
+### 200 OK
+
+<ResponseField name="success" type="boolean">
+  `true` when authentication succeeds.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="user" type="object">
+      <Expandable title="properties">
+        <ResponseField name="id" type="string">
+          MongoDB ObjectId of the authenticated user.
+        </ResponseField>
+        <ResponseField name="username" type="string">
+          The user's display name.
+        </ResponseField>
+        <ResponseField name="email" type="string">
+          The user's email address.
+        </ResponseField>
+        <ResponseField name="role" type="string">
+          The user's current role: `read`, `write`, or `admin`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="token" type="string">
+      Signed JWT. Pass this as a Bearer token in the `Authorization` header for all protected requests. Expiry is controlled by the `JWT_EXPIRE` environment variable (default: 7 days).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Invalid credentials, or the account has been deactivated. |
+| `429`  | Rate limit exceeded. |
+
+```json 401 – invalid credentials
+{
+  "success": false,
+  "error": "Credenciales inválidas"
+}
+```
+
+```json 429 – rate limit exceeded
+{
+  "success": false,
+  "error": "Demasiadas solicitudes, por favor intenta de nuevo más tarde",
+  "retryAfter": 900
+}
+```
+
+<Note>
+  Tokens expire after the period configured by `JWT_EXPIRE` (default 7 days). When a protected endpoint returns `401`, re-authenticate to obtain a fresh token.
+</Note>
+
+## Example
+
+```bash cURL
+curl --request POST \
+  --url https://api.kilometracker.app/api/auth/login \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "jane@example.com",
+    "password": "s3cur3pass"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "6642f3a1c3d4e5f6a7b8c9d0",
+      "username": "jane",
+      "email": "jane@example.com",
+      "role": "write"
+    },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```

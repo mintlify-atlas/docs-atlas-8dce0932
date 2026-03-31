@@ -1,0 +1,401 @@
+---
+title: "Vehicles"
+description: "Manage vehicles — create, read, update, soft-delete, and reactivate."
+---
+
+<Note>
+  Only active vehicles can have new routes created. Deactivated vehicles retain all historical data but cannot accept new route entries.
+</Note>
+
+<Tip>
+  Always use uppercase alias values in URL paths. The API stores aliases in uppercase and lookups are case-sensitive.
+</Tip>
+
+## GET /api/vehicles
+
+List all vehicles belonging to the authenticated user. Optionally filter by active status.
+
+**Auth:** Required (any authenticated user)
+
+### Query parameters
+
+<ParamField query="isActive" type="string">
+  Filter by active status. Accepts `"true"` or `"false"`. Omit to return all vehicles.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/vehicles?isActive=true' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "count": 5,
+  "data": [
+    {
+      "_id": "string",
+      "alias": "MIVEHICULO",
+      "marca": "Toyota",
+      "modelo": 2023,
+      "plates": "ABC-1234",
+      "kilometrajeInicial": 0,
+      "kilometrajeTotal": 15000,
+      "owner": "string",
+      "isActive": true,
+      "createdAt": "date",
+      "updatedAt": "date"
+    }
+  ]
+}
+```
+
+---
+
+## POST /api/vehicles
+
+Create a new vehicle. The `alias` is automatically uppercased and must be unique per owner.
+
+**Auth:** Required (Write or Admin role)
+
+### Body parameters
+
+<ParamField body="alias" type="string" required>
+  Short identifier for the vehicle. Automatically converted to uppercase. Must be unique per owner.
+</ParamField>
+
+<ParamField body="marca" type="string" required>
+  Vehicle make (manufacturer).
+</ParamField>
+
+<ParamField body="modelo" type="number" required>
+  Model year. Must be between 1900 and the current year plus one.
+</ParamField>
+
+<ParamField body="plates" type="string">
+  License plate number. Optional.
+</ParamField>
+
+<ParamField body="kilometrajeInicial" type="number" required default="0">
+  Starting odometer reading in kilometers. Minimum value is `0`.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request POST \
+  --url 'https://api.kilometracker.com/api/vehicles' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "alias": "mivehiculo",
+    "marca": "Toyota",
+    "modelo": 2023,
+    "plates": "ABC-1234",
+    "kilometrajeInicial": 0
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "alias": "MIVEHICULO",
+    "marca": "Toyota",
+    "modelo": 2023,
+    "plates": "ABC-1234",
+    "kilometrajeInicial": 0,
+    "kilometrajeTotal": 0,
+    "owner": "string",
+    "isActive": true,
+    "createdAt": "date",
+    "updatedAt": "date"
+  }
+}
+```
+
+---
+
+## GET /api/vehicles/:alias
+
+Retrieve a single vehicle by its alias.
+
+**Auth:** Required (any authenticated user)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "alias": "MIVEHICULO",
+    "marca": "Toyota",
+    "modelo": 2023,
+    "plates": "ABC-1234",
+    "kilometrajeInicial": 0,
+    "kilometrajeTotal": 15000,
+    "owner": "string",
+    "isActive": true,
+    "createdAt": "date",
+    "updatedAt": "date"
+  }
+}
+```
+
+---
+
+## PUT /api/vehicles/:alias
+
+Update vehicle details. The `alias`, `kilometrajeTotal`, and `owner` fields cannot be changed through this endpoint.
+
+**Auth:** Required (Write or Admin role)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle to update.
+</ParamField>
+
+### Body parameters
+
+<ParamField body="marca" type="string">
+  Vehicle make (manufacturer).
+</ParamField>
+
+<ParamField body="modelo" type="number">
+  Model year.
+</ParamField>
+
+<ParamField body="plates" type="string">
+  License plate number.
+</ParamField>
+
+<ParamField body="kilometrajeInicial" type="number">
+  Starting odometer reading in kilometers.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request PUT \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO' \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "marca": "Toyota",
+    "modelo": 2024,
+    "plates": "XYZ-9999"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "string",
+    "alias": "MIVEHICULO",
+    "marca": "Toyota",
+    "modelo": 2024,
+    "plates": "XYZ-9999",
+    "kilometrajeInicial": 0,
+    "kilometrajeTotal": 15000,
+    "isActive": true
+  }
+}
+```
+
+---
+
+## DELETE /api/vehicles/:alias
+
+Soft-delete a vehicle by setting `isActive` to `false`. The vehicle and all its associated data are retained.
+
+**Auth:** Required (Write or Admin role)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle to deactivate.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request DELETE \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Vehículo desactivado correctamente",
+  "data": {
+    "_id": "string",
+    "alias": "MIVEHICULO",
+    "isActive": false
+  }
+}
+```
+
+---
+
+## PATCH /api/vehicles/:alias/reactivate
+
+Restore a previously deactivated vehicle by setting `isActive` back to `true`.
+
+**Auth:** Required (Write or Admin role)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle to reactivate.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request PATCH \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO/reactivate' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Vehículo reactivado correctamente",
+  "data": {
+    "_id": "string",
+    "alias": "MIVEHICULO",
+    "isActive": true
+  }
+}
+```
+
+---
+
+## GET /api/vehicles/:alias/fuel-efficiency
+
+Calculate fuel efficiency metrics for a vehicle over an optional date range.
+
+**Auth:** Required (any authenticated user)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="startDate" type="string">
+  Start of the date range in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField query="endDate" type="string">
+  End of the date range in `YYYY-MM-DD` format.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO/fuel-efficiency?startDate=2024-01-01&endDate=2024-12-31' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "vehicle": {
+      "alias": "MIVEHICULO",
+      "marca": "Toyota",
+      "modelo": 2023
+    },
+    "efficiency": {
+      "kmPorLitro": 12.5,
+      "kmPorGalon": 47.32,
+      "costoPorKm": 0.85,
+      "totalDistancia": 5000,
+      "totalGalones": 105.7,
+      "totalGastoCombustible": 4250
+    },
+    "period": {
+      "startDate": "2024-01-01",
+      "endDate": "2024-12-31",
+      "totalRefuels": 25,
+      "totalRoutes": 120
+    }
+  }
+}
+```
+
+---
+
+## GET /api/vehicles/:alias/analytics
+
+Returns historical time-series data grouped by month, for charting trends in distance, fuel cost, maintenance cost, and efficiency.
+
+**Auth:** Required (any authenticated user)
+
+### Path parameters
+
+<ParamField path="alias" type="string" required>
+  The uppercase alias of the vehicle.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="period" type="string">
+  Time period to include. Accepts `"3m"`, `"6m"` (default), or `"12m"`.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.com/api/vehicles/MIVEHICULO/analytics?period=6m' \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "vehicle": { "alias": "MIVEHICULO", "marca": "Toyota", "modelo": 2023 },
+    "period": "6m",
+    "series": {
+      "distancia": [
+        { "period": "2024-06", "label": "Jun 2024", "value": 850.5 }
+      ],
+      "costoCombustible": [
+        { "period": "2024-06", "label": "Jun 2024", "value": 320.0 }
+      ],
+      "costoMantenimiento": [
+        { "period": "2024-06", "label": "Jun 2024", "value": 150.0 }
+      ],
+      "eficiencia": [
+        { "period": "2024-06", "label": "Jun 2024", "kmPorLitro": 11.8, "costoPorKm": 0.376 }
+      ]
+    }
+  }
+}
+```

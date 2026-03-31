@@ -1,80 +1,276 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start"
+description: "Register an account, create a vehicle, and log your first trip using the KilomeTracker API."
 ---
 
-## Get started in three steps
+This guide walks you from zero to a working vehicle with logged trips and live odometer stats. Each step builds on the previous one.
 
-Get your documentation site running locally and make your first customization.
+<Note>
+  All protected endpoints require a `Bearer` token in the `Authorization` header:
+  ```
+  Authorization: Bearer <your_jwt_token>
+  ```
+  Steps 2 onwards show you how to obtain and use this token.
+</Note>
 
-### Step 1: Set up your local environment
+<Steps>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Register an account">
+    Create a new user account. The API returns a JWT token immediately — no separate login step required.
 
-### Step 2: Deploy your changes
+    ```bash
+    curl -X POST https://your-deployment.railway.app/api/auth/register \
+      -H "Content-Type: application/json" \
+      -d '{
+        "username": "maria",
+        "email": "maria@example.com",
+        "password": "mysecretpass"
+      }'
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    **Request fields**
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <ParamField body="username" type="string" required>
+      Display name. Minimum 3 characters.
+    </ParamField>
+    <ParamField body="email" type="string" required>
+      Valid email address. Must be unique.
+    </ParamField>
+    <ParamField body="password" type="string" required>
+      Minimum 6 characters.
+    </ParamField>
+    <ParamField body="role" type="string" default="read">
+      Account role. One of `read`, `write`, `admin`. Defaults to `read`.
+    </ParamField>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    **Response (201)**
 
-### Step 3: Go live
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "6476a1b2c3d4e5f678901234",
+          "username": "maria",
+          "email": "maria@example.com",
+          "role": "read"
+        },
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      }
+    }
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    Save the `token` value — you will send it on every subsequent request.
+
+    <Note>
+      New accounts default to the `read` role. To create vehicles and log trips, your account needs the `write` role. Ask an `admin` to upgrade your role, or register with `"role": "write"` if the system permits it.
+    </Note>
+  </Step>
+
+  <Step title="Log in and save your token">
+    If you already have an account, exchange your credentials for a fresh token.
+
+    ```bash
+    curl -X POST https://your-deployment.railway.app/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "maria@example.com",
+        "password": "mysecretpass"
+      }'
+    ```
+
+    **Response (200)**
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "6476a1b2c3d4e5f678901234",
+          "username": "maria",
+          "email": "maria@example.com",
+          "role": "write"
+        },
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      }
+    }
+    ```
+
+    Store the token in an environment variable for convenience:
+
+    ```bash
+    TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    ```
+
+    Tokens expire after 7 days by default. When you receive a `401` response, log in again to get a new token.
+  </Step>
+
+  <Step title="Create a vehicle">
+    Register your vehicle with an alias, make, model, and starting odometer reading.
+
+    ```bash
+    curl -X POST https://your-deployment.railway.app/api/vehicles \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TOKEN" \
+      -d '{
+        "alias": "corolla",
+        "marca": "Toyota",
+        "modelo": 2022,
+        "plates": "ABC-123",
+        "kilometrajeInicial": 12500
+      }'
+    ```
+
+    **Request fields**
+
+    <ParamField body="alias" type="string" required>
+      Unique shortname for the vehicle. Automatically uppercased (e.g. `corolla` becomes `COROLLA`). Used as the identifier in all subsequent vehicle requests.
+    </ParamField>
+    <ParamField body="marca" type="string" required>
+      Vehicle make (e.g. `Toyota`, `Kia`).
+    </ParamField>
+    <ParamField body="modelo" type="number" required>
+      Model year between 1900 and the current year + 1.
+    </ParamField>
+    <ParamField body="plates" type="string">
+      License plate number. Optional.
+    </ParamField>
+    <ParamField body="kilometrajeInicial" type="number" required>
+      Odometer reading at registration (in km). Minimum `0`.
+    </ParamField>
+
+    **Response (201)**
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "_id": "6476a1b2c3d4e5f678905678",
+        "alias": "COROLLA",
+        "marca": "Toyota",
+        "modelo": 2022,
+        "plates": "ABC-123",
+        "kilometrajeInicial": 12500,
+        "kilometrajeTotal": 12500,
+        "owner": "6476a1b2c3d4e5f678901234",
+        "isActive": true,
+        "createdAt": "2024-11-24T10:30:00.000Z",
+        "updatedAt": "2024-11-24T10:30:00.000Z"
+      }
+    }
+    ```
+
+    Note that `kilometrajeTotal` starts equal to `kilometrajeInicial`. The API increments it automatically each time you log a trip.
+  </Step>
+
+  <Step title="Log a trip">
+    Record a trip for your vehicle. The API atomically increments the vehicle's total kilometrage.
+
+    ```bash
+    curl -X POST https://your-deployment.railway.app/api/routes \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TOKEN" \
+      -d '{
+        "vehicleAlias": "COROLLA",
+        "distanciaRecorrida": 75.5,
+        "notasAdicionales": "Drive to the coast"
+      }'
+    ```
+
+    **Request fields**
+
+    <ParamField body="vehicleAlias" type="string" required>
+      The alias of the vehicle (uppercase). Must be an active vehicle you own.
+    </ParamField>
+    <ParamField body="distanciaRecorrida" type="number" required>
+      Distance driven in kilometers. Minimum `0.1`.
+    </ParamField>
+    <ParamField body="fecha" type="string">
+      ISO 8601 date of the trip. Defaults to the current time.
+    </ParamField>
+    <ParamField body="notasAdicionales" type="string">
+      Optional trip notes.
+    </ParamField>
+
+    **Response (201)**
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "_id": "6476a1b2c3d4e5f678909abc",
+        "vehicleAlias": "COROLLA",
+        "vehicle": "6476a1b2c3d4e5f678905678",
+        "fecha": "2024-11-24T10:30:00.000Z",
+        "distanciaRecorrida": 75.5,
+        "notasAdicionales": "Drive to the coast",
+        "owner": "6476a1b2c3d4e5f678901234"
+      },
+      "vehicleKilometraje": 12575.5
+    }
+    ```
+
+    The `vehicleKilometraje` field in the response confirms the vehicle's new total odometer reading after the trip.
+  </Step>
+
+  <Step title="Get vehicle stats">
+    Query comprehensive statistics for your vehicle: total distance, costs broken down by category, and fuel efficiency.
+
+    ```bash
+    curl https://your-deployment.railway.app/api/vehicles/COROLLA/stats \
+      -H "Authorization: Bearer $TOKEN"
+    ```
+
+    **Response (200)**
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "vehicle": {
+          "alias": "COROLLA",
+          "marca": "Toyota",
+          "modelo": 2022,
+          "plates": "ABC-123",
+          "kilometrajeInicial": 12500,
+          "kilometrajeTotal": 12575.5,
+          "isActive": true
+        },
+        "statistics": {
+          "totalRoutes": 1,
+          "totalRefuels": 0,
+          "totalMaintenances": 0,
+          "totalExpenses": 0,
+          "totalDistancia": 75.5
+        },
+        "costs": {
+          "combustible": 0,
+          "mantenimiento": 0,
+          "gastosOtros": 0,
+          "total": 0,
+          "costoPorKm": 0
+        },
+        "efficiency": {
+          "kmPorLitro": null,
+          "kmPorGalon": null,
+          "promedioDistanciaPorRuta": 75.5
+        }
+      }
+    }
+    ```
+
+    All monetary values are in Guatemalan Quetzales (Q). As you add refuels and expenses, the `costs` and `efficiency` sections populate automatically.
+  </Step>
+
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Understand token expiry, header format, and error codes.
+  </Card>
+  <Card title="Data Model" icon="database" href="/concepts/data-model">
+    Learn how vehicles, trips, refuels, maintenance, and expenses relate.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

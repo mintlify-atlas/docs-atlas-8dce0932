@@ -1,0 +1,417 @@
+---
+title: 'Expenses'
+description: 'Track vehicle expenses by category, manage recurring payments, and get spending summaries.'
+---
+
+This page covers eight endpoints for creating and managing vehicle expenses. GET operations require authentication; write and delete operations additionally require the `write` or `admin` role.
+
+---
+
+## List expenses
+
+`GET /api/expenses`
+
+Returns all expense records owned by the authenticated user. Supports filtering by vehicle, category, date range, and tax deductibility.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Query parameters
+
+<ParamField query="vehicleAlias" type="string">
+  Filter records to a specific vehicle by its alias.
+</ParamField>
+
+<ParamField query="categoria" type="string">
+  Filter by expense category. One of: `Seguro`, `Impuestos`, `Registro`, `Estacionamiento`, `Peajes`, `Lavado`, `Multas`, `Financiamiento`, `Otro`.
+</ParamField>
+
+<ParamField query="startDate" type="string">
+  Earliest expense date to include, in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField query="endDate" type="string">
+  Latest expense date to include, in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField query="esDeducibleImpuestos" type="string">
+  Filter by tax deductibility. Pass `true` to return only deductible expenses, `false` for non-deductible.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.app/api/expenses?vehicleAlias=CAR1&categoria=Seguro&startDate=2024-01-01&endDate=2024-12-31&esDeducibleImpuestos=true' \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "count": 1,
+  "data": [
+    {
+      "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+      "vehicleAlias": "CAR1",
+      "vehicle": {
+        "_id": "6642f3a1c3d4e5f6a7b8c9d1",
+        "alias": "CAR1",
+        "marca": "Toyota",
+        "modelo": 2023
+      },
+      "categoria": "Seguro",
+      "monto": 1500,
+      "descripcion": "Pago semestral del seguro de auto",
+      "fecha": "2024-11-24T10:30:00.000Z",
+      "esRecurrente": true,
+      "frecuenciaRecurrencia": "Semestral",
+      "proximoPago": "2025-05-24T00:00:00.000Z",
+      "esDeducibleImpuestos": true,
+      "notas": "Incluye cobertura amplia",
+      "owner": "6642f3a1c3d4e5f6a7b8c9d2",
+      "createdAt": "2024-11-24T10:30:00.000Z",
+      "updatedAt": "2024-11-24T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Get expense summary
+
+`GET /api/expenses/summary`
+
+Returns aggregated spending grouped by category, along with a fleet-wide total. Useful for generating category breakdowns for a given period or vehicle.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Query parameters
+
+<ParamField query="vehicleAlias" type="string">
+  Limit the summary to a specific vehicle.
+</ParamField>
+
+<ParamField query="startDate" type="string">
+  Start of the summary period in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField query="endDate" type="string">
+  End of the summary period in `YYYY-MM-DD` format.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url 'https://api.kilometracker.app/api/expenses/summary?vehicleAlias=CAR1&startDate=2024-01-01&endDate=2024-12-31' \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "summary": [
+      {
+        "_id": "Seguro",
+        "totalMonto": 3000,
+        "cantidad": 2
+      },
+      {
+        "_id": "Estacionamiento",
+        "totalMonto": 450,
+        "cantidad": 15
+      }
+    ],
+    "totalGastos": 3450,
+    "categorias": 2
+  }
+}
+```
+
+---
+
+## Get upcoming recurring expenses
+
+`GET /api/expenses/upcoming`
+
+Returns recurring expenses whose next payment date falls within the next 30 days.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url https://api.kilometracker.app/api/expenses/upcoming \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "count": 1,
+  "data": [
+    {
+      "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+      "vehicleAlias": "CAR1",
+      "vehicle": {
+        "_id": "6642f3a1c3d4e5f6a7b8c9d1",
+        "alias": "CAR1",
+        "marca": "Toyota",
+        "modelo": 2023
+      },
+      "categoria": "Seguro",
+      "monto": 1500,
+      "descripcion": "Pago semestral del seguro de auto",
+      "esRecurrente": true,
+      "frecuenciaRecurrencia": "Semestral",
+      "proximoPago": "2024-12-15T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Create an expense
+
+`POST /api/expenses`
+
+Creates a new expense record for a vehicle.
+
+**Auth required:** Yes — `write` or `admin` role
+
+<Tip>
+  Set `esDeducibleImpuestos: true` on tax-deductible expenses so you can filter and report on them separately. Use the `/summary` endpoint to get category-level spending breakdowns for accounting or reporting.
+</Tip>
+
+### Request body
+
+<ParamField body="vehicleAlias" type="string" required>
+  Alias of the vehicle this expense belongs to.
+</ParamField>
+
+<ParamField body="categoria" type="string" required>
+  Expense category. One of: `Seguro`, `Impuestos`, `Registro`, `Estacionamiento`, `Peajes`, `Lavado`, `Multas`, `Financiamiento`, `Otro`.
+</ParamField>
+
+<ParamField body="monto" type="number" required>
+  Amount spent in Q (quetzales). Minimum: `0`.
+</ParamField>
+
+<ParamField body="descripcion" type="string" required>
+  Description of the expense.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  Date the expense was incurred, in ISO 8601 format. Defaults to the current date and time.
+</ParamField>
+
+<ParamField body="esRecurrente" type="boolean" default="false">
+  Whether this is a recurring expense.
+</ParamField>
+
+<ParamField body="frecuenciaRecurrencia" type="string">
+  Recurrence frequency. Required when `esRecurrente` is `true`. One of: `Mensual`, `Trimestral`, `Semestral`, `Anual`.
+</ParamField>
+
+<ParamField body="proximoPago" type="string">
+  Date of the next payment for a recurring expense, in ISO 8601 format.
+</ParamField>
+
+<ParamField body="esDeducibleImpuestos" type="boolean" default="false">
+  Whether this expense is tax-deductible.
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Additional notes about the expense.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request POST \
+  --url https://api.kilometracker.app/api/expenses \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "vehicleAlias": "CAR1",
+    "categoria": "Seguro",
+    "monto": 1500,
+    "descripcion": "Pago semestral del seguro de auto",
+    "esRecurrente": true,
+    "frecuenciaRecurrencia": "Semestral",
+    "proximoPago": "2025-05-24",
+    "esDeducibleImpuestos": true,
+    "notas": "Incluye cobertura amplia"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "vehicleAlias": "CAR1",
+    "vehicle": "6642f3a1c3d4e5f6a7b8c9d1",
+    "categoria": "Seguro",
+    "monto": 1500,
+    "descripcion": "Pago semestral del seguro de auto",
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "esRecurrente": true,
+    "frecuenciaRecurrencia": "Semestral",
+    "proximoPago": "2025-05-24T00:00:00.000Z",
+    "esDeducibleImpuestos": true,
+    "notas": "Incluye cobertura amplia",
+    "owner": "6642f3a1c3d4e5f6a7b8c9d2"
+  }
+}
+```
+
+---
+
+## Get an expense
+
+`GET /api/expenses/:id`
+
+Returns a single expense record by its ID.
+
+**Auth required:** Yes — `Authorization: Bearer <token>`
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url https://api.kilometracker.app/api/expenses/6642f3a1c3d4e5f6a7b8c9d0 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "vehicleAlias": "CAR1",
+    "vehicle": {
+      "_id": "6642f3a1c3d4e5f6a7b8c9d1",
+      "alias": "CAR1",
+      "marca": "Toyota",
+      "modelo": 2023
+    },
+    "categoria": "Seguro",
+    "monto": 1500,
+    "descripcion": "Pago semestral del seguro de auto",
+    "fecha": "2024-11-24T10:30:00.000Z",
+    "esRecurrente": true,
+    "frecuenciaRecurrencia": "Semestral",
+    "proximoPago": "2025-05-24T00:00:00.000Z",
+    "esDeducibleImpuestos": true,
+    "notas": "Incluye cobertura amplia"
+  }
+}
+```
+
+---
+
+## Update an expense
+
+`PUT /api/expenses/:id`
+
+Updates one or more fields on an existing expense record. Only the fields you include in the request body are changed.
+
+**Auth required:** Yes — `write` or `admin` role
+
+### Request body
+
+<ParamField body="categoria" type="string">
+  Updated expense category.
+</ParamField>
+
+<ParamField body="monto" type="number">
+  Updated amount in Q. Minimum: `0`.
+</ParamField>
+
+<ParamField body="descripcion" type="string">
+  Updated description.
+</ParamField>
+
+<ParamField body="fecha" type="string">
+  Updated expense date in ISO 8601 format.
+</ParamField>
+
+<ParamField body="esRecurrente" type="boolean">
+  Updated recurrence flag.
+</ParamField>
+
+<ParamField body="frecuenciaRecurrencia" type="string">
+  Updated recurrence frequency. One of: `Mensual`, `Trimestral`, `Semestral`, `Anual`.
+</ParamField>
+
+<ParamField body="proximoPago" type="string">
+  Updated next payment date in ISO 8601 format.
+</ParamField>
+
+<ParamField body="esDeducibleImpuestos" type="boolean">
+  Updated tax-deductibility flag.
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Updated notes.
+</ParamField>
+
+### Example
+
+```bash cURL
+curl --request PUT \
+  --url https://api.kilometracker.app/api/expenses/6642f3a1c3d4e5f6a7b8c9d0 \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "monto": 1600,
+    "proximoPago": "2025-06-01"
+  }'
+```
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "_id": "6642f3a1c3d4e5f6a7b8c9d0",
+    "vehicleAlias": "CAR1",
+    "categoria": "Seguro",
+    "monto": 1600,
+    "descripcion": "Pago semestral del seguro de auto"
+  }
+}
+```
+
+---
+
+## Delete an expense
+
+`DELETE /api/expenses/:id`
+
+Permanently deletes an expense record. This action cannot be undone.
+
+**Auth required:** Yes — `write` or `admin` role
+
+<Warning>
+  This is a permanent delete. The record cannot be recovered after deletion.
+</Warning>
+
+### Example
+
+```bash cURL
+curl --request DELETE \
+  --url https://api.kilometracker.app/api/expenses/6642f3a1c3d4e5f6a7b8c9d0 \
+  --header 'Authorization: Bearer <token>'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Gasto eliminado correctamente"
+}
+```
